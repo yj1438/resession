@@ -44,14 +44,19 @@ fn build_command(spec: &ResumeSpec) -> CommandBuilder {
     cmd.env_clear();
     for (k, v) in std::env::vars_os() {
         let name = k.to_string_lossy().to_string();
-        if name.to_uppercase().starts_with("CLAUDE") {
+        let upper = name.to_uppercase();
+        // CLAUDE*：child-session 标记会关闭转录保存；
+        // CI / NO_COLOR：两者都会压掉 TUI 颜色
+        if upper.starts_with("CLAUDE") || upper == "CI" || upper == "NO_COLOR" {
             continue;
         }
         cmd.env(&name, v);
     }
-    // 让 TUI 程序（claude 等）正确启用 256 色/真彩
+    // 颜色三件套：TERM/COLORTERM 是常规声明；FORCE_COLOR=3 强制 Node/chalk
+    // 走真彩，绕过其在 ConPTY 下不可靠的终端能力自动探测
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    cmd.env("FORCE_COLOR", "3");
     cmd
 }
 
