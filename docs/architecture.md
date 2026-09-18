@@ -72,13 +72,23 @@ pub struct ResumeSpec {
 ```
 用户点"终端"标签 → invoke resume
   → Provider.resume_command() → pty.rs 打开 portable-pty
-  → spawn(program, args, cwd)
-  → 双向桥：pty 输出 → window.emit("pty://<id>/out") → xterm.write
-            xterm.onData → invoke write → pty 输入
+  → spawn(program, args, cwd)   ← 以会话 id 为键，幂等；已存在则直接附着
+  → 双向桥：pty 输出(原始字节) → window.emit("pty-out") → xterm.write(Uint8Array)
+            xterm.onData → invoke pty_write → pty 输入
   → resize 事件 → pty.resize(cols, rows)
 ```
-- 每个 PTY 一个 uuid 会话 id，前端标签页销毁时 invoke close 释放
+- **PTY 常驻后端**，以会话 id 为键，生命周期与 UI 无关：切换会话/标签只是
+  断开观看，切回时经 `pty_snapshot` 回放缓冲（512KB 滚动）重新附着，
+  天然支持并行多会话。UI 上以侧栏绿点 + 状态栏计数标识，页头按钮手动关闭
 - **不解析、不记录、不干预 PTY 内容**——这就是"原生"的含义
+
+#### ConPTY 实战笔记（M1.2 踩坑）
+
+| 问题 | 根因 | 解法 |
+|---|---|---|
+| TUI 黑白无色 | claude/Node 在 ConPTY 下的终端能力探测不可靠 | spawn 时注入 `FORCE_COLOR=3`（chalk 层强制真彩）+ `TERM=xterm-256color` + `COLORTERM=truecolor` |
+| 恢复的会话不保存转录 | 宿主进程的 `CLAUDE*` 环境变量被 PTY 继承，claude 视为 child session 关闭写入 | spawn 前 `env_clear` + 白名单重灌，剥离全部 `CLAUDE*` 及 `CI`/`NO_COLOR` |
+| 多字节字符跨块乱码 | 逐块 lossy UTF-8 解码 | 输出改字节级传输（`Vec<u8>` → `Uint8Array`），xterm 自带 UTF-8 状态机 |
 
 ## 4. IR（中间表示）v0
 

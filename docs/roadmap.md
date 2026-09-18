@@ -31,6 +31,12 @@
 - [ ] 设置页：claude 二进制手动指定、主题
 - [ ] 系统终端兜底：在 Windows Terminal 里打开同一 resume 命令
 
+### M1.x 已提前消化（2026-09-19）
+
+- [x] PTY 常驻与并行多会话（M1.1，提前自 M2"会话保活"）
+- [x] 终端全彩（FORCE_COLOR=3，见 architecture.md 3.3 ConPTY 笔记）
+- [x] 字节级输出传输（中文跨块乱码修复）
+
 ## M3 — 扩展
 
 - [ ] 会话备注/置顶（存 ReSession 自己的配置，不污染 Claude 数据）
