@@ -25,6 +25,7 @@
 | [docs/design.md](docs/design.md) | 目标、非目标、设计原则、UI 布局 |
 | [docs/architecture.md](docs/architecture.md) | 模块划分、SessionProvider 接口、数据流、平台矩阵 |
 | [docs/data-formats.md](docs/data-formats.md) | Claude JSONL 格式笔记、IR 定义、Codex 格式占位 |
+| [docs/build.md](docs/build.md) | 构建模式、环境前置、**踩坑实录**、产物检查清单 |
 | [docs/roadmap.md](docs/roadmap.md) | 里程碑与当前进度 |
 
 ## 开发
