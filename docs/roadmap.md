@@ -23,6 +23,15 @@
 
 验收标准：在 ReSession 里恢复一个旧会话并继续对话，体验与直接开终端无异。
 
+## M1.5 — 日用打磨（✅ 2026-09-19 完成）
+
+- [x] 原生 /rename 标题解析（custom-title 行）；sidechain 折叠（方案 b）
+- [x] 双轨命名：`~/.resession/settings.json` 别名，优先级 别名 > 原生 > summary > 首条消息
+- [x] 单视图状态机：转录（历史态）↔ 终端（活跃态），"▶ 恢复会话"显式动作
+- [x] 转录 markdown 渲染（react-markdown + gfm + highlight）；工具调用 details 折叠
+- [x] 忙闲三态感知（输出时间戳近似，4s 阈值；静默长任务会误判为空闲，已知限制）
+- [x] 扫描 mtime+size 增量缓存
+
 ## M2 — 回放与搜索体验
 
 - [ ] 转录富文本渲染：markdown、代码高亮、工具调用折叠、attachment 忽略
