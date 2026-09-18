@@ -28,7 +28,6 @@ export default function App() {
   const [activePtys, setActivePtys] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"transcript" | "terminal">("transcript");
 
   useEffect(() => {
     if (!isTauri) return;
@@ -50,7 +49,8 @@ export default function App() {
   useEffect(() => {
     refreshPtys();
     if (!isTauri) return;
-    // 后台 PTY 退出（用户在里面 /exit 或崩溃）时刷新运行中标识
+    // 后台 PTY 退出（用户在里面 /exit、⏹ 关闭或崩溃）时刷新运行中标识，
+    // 视图随之回到转录态
     let un: UnlistenFn | undefined;
     void listen("pty-exit", () => refreshPtys()).then((u) => (un = u));
     return () => un?.();
@@ -65,6 +65,32 @@ export default function App() {
   }, [sessions, query]);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
+  // 单视图状态机：会话有存活 PTY → 终端态；否则 → 转录态（历史态）
+  const running = selected ? activePtys.includes(selected.id) : false;
+
+  const resumeSession = (s: SessionMeta) => {
+    if (!isTauri) return;
+    void invoke<string>("resume_session", { meta: s })
+      .then(() => refreshPtys())
+      .catch(() => {});
+  };
+
+  const handleRename = (s: SessionMeta, name: string) => {
+    if (!isTauri) return;
+    void invoke<void>("rename_session", {
+      provider: s.provider,
+      id: s.id,
+      name,
+    })
+      .then(() =>
+        setSessions((prev) =>
+          prev.map((x) =>
+            x.id === s.id ? { ...x, title: name.trim() || x.title } : x,
+          ),
+        ),
+      )
+      .catch(() => {});
+  };
 
   return (
     <div className="app">
@@ -83,43 +109,38 @@ export default function App() {
           sessions={filtered}
           selectedId={selectedId}
           activePtys={activePtys}
-          onSelect={(id) => {
-            setSelectedId(id);
-            setTab("transcript");
-          }}
+          onSelect={(id) => setSelectedId(id)}
+          onRename={handleRename}
         />
 
         <section className="content">
           {selected ? (
-            <>
-              <nav className="tabs">
-                <button
-                  className={tab === "transcript" ? "tab active" : "tab"}
-                  onClick={() => setTab("transcript")}
-                >
-                  转录
-                </button>
-                <button
-                  className={tab === "terminal" ? "tab active" : "tab"}
-                  onClick={() => setTab("terminal")}
-                >
-                  终端
-                </button>
-              </nav>
-              {tab === "transcript" ? (
+            running ? (
+              <TerminalPane
+                key={selected.id}
+                session={selected}
+                onPtyStateChange={refreshPtys}
+              />
+            ) : (
+              <>
+                <div className="session-bar">
+                  <span className="session-bar-title">
+                    {selected.title ?? "(无标题)"}
+                  </span>
+                  <button
+                    className="resume-btn"
+                    onClick={() => resumeSession(selected)}
+                  >
+                    ▶ 恢复会话
+                  </button>
+                </div>
                 <TranscriptPane key={selected.id} session={selected} />
-              ) : (
-                <TerminalPane
-                  key={selected.id}
-                  session={selected}
-                  onPtyStateChange={refreshPtys}
-                />
-              )}
-            </>
+              </>
+            )
           ) : (
             <div className="empty">
               <p>从左侧选择一个会话</p>
-              <p className="hint">转录回放找回记忆 → 终端恢复原生会话</p>
+              <p className="hint">转录找回记忆 → 恢复会话进入原生终端</p>
             </div>
           )}
         </section>

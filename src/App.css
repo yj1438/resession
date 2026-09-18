@@ -126,31 +126,11 @@ body {
   min-width: 0;
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
-  padding: 6px 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.tab {
-  padding: 6px 14px;
-  border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  background: transparent;
-  color: var(--dim);
-  cursor: pointer;
-}
-
-.tab.active {
-  background: var(--panel);
-  color: var(--text);
-}
-
 .transcript {
+  flex: 1;
   padding: 16px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .transcript dl {
@@ -288,4 +268,64 @@ body {
 .sidechain-evt {
   opacity: 0.65;
   margin-left: 16px;
+}
+
+.session-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-bar-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-btn {
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--accent);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.resume-btn:hover {
+  background: rgba(88, 166, 255, 0.12);
+}
+
+.rename-btn {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+}
+
+.session:hover .rename-btn {
+  opacity: 1;
+}
+
+.rename-btn:hover {
+  color: var(--accent);
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
 }
