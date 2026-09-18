@@ -3,6 +3,7 @@ import type { SessionMeta } from "../types";
 interface Props {
   sessions: SessionMeta[];
   selectedId: string | null;
+  activePtys: string[];
   onSelect: (id: string) => void;
 }
 
@@ -16,26 +17,39 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(hr / 24)}d`;
 }
 
-export default function Sidebar({ sessions, selectedId, onSelect }: Props) {
+export default function Sidebar({
+  sessions,
+  selectedId,
+  activePtys,
+  onSelect,
+}: Props) {
   return (
     <aside className="sidebar">
       <ul>
-        {sessions.map((s) => (
-          <li
-            key={s.id}
-            className={s.id === selectedId ? "session selected" : "session"}
-            onClick={() => onSelect(s.id)}
-          >
-            <div className="row">
-              <span className="time">{relativeTime(s.modifiedAt)}</span>
-              <span className="project">{s.cwd ?? s.projectDir}</span>
-            </div>
-            <div className="row">
-              <span className="title">{s.title ?? "(无标题)"}</span>
-              <span className="count">{s.messageCount}</span>
-            </div>
-          </li>
-        ))}
+        {sessions.map((s) => {
+          const running = activePtys.includes(s.id);
+          return (
+            <li
+              key={s.id}
+              className={s.id === selectedId ? "session selected" : "session"}
+              onClick={() => onSelect(s.id)}
+            >
+              <div className="row">
+                <span className="time">{relativeTime(s.modifiedAt)}</span>
+                <span className="project">{s.cwd ?? s.projectDir}</span>
+                {running && (
+                  <span className="dot" title="终端运行中">
+                    ●
+                  </span>
+                )}
+              </div>
+              <div className="row">
+                <span className="title">{s.title ?? "(无标题)"}</span>
+                <span className="count">{s.messageCount}</span>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </aside>
   );

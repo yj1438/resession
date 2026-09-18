@@ -34,19 +34,22 @@ fn load_transcript(meta: SessionMeta) -> Result<Vec<Event>, String> {
 }
 
 /// 为会话打开原生 PTY 并运行 provider 给出的 resume 命令，返回 PTY 会话 id。
+/// 幂等：该会话已有存活的 PTY 时直接返回现有 id（切换会话回来 = 重新附着）。
 #[tauri::command]
 fn resume_session(
     app: AppHandle,
     ptys: State<PtyMap>,
     meta: SessionMeta,
 ) -> Result<String, String> {
+    if ptys.0.lock().unwrap().contains_key(&meta.id) {
+        return Ok(meta.id.clone());
+    }
     let spec = provider_for(&meta.provider)?
         .resume_command(&meta)
         .map_err(|e| e.to_string())?;
-    let id = uuid::Uuid::new_v4().to_string();
     // 初始 24x80，前端 xterm 挂载后立即上报真实尺寸
-    pty::spawn(&app, &ptys, id.clone(), spec, 24, 80)?;
-    Ok(id)
+    pty::spawn(&app, &ptys, meta.id.clone(), spec, 24, 80)?;
+    Ok(meta.id)
 }
 
 #[tauri::command]
@@ -57,6 +60,18 @@ fn pty_write(ptys: State<PtyMap>, id: String, data: String) -> Result<(), String
 #[tauri::command]
 fn pty_resize(ptys: State<PtyMap>, id: String, rows: u16, cols: u16) -> Result<(), String> {
     pty::resize(&ptys, &id, rows, cols)
+}
+
+/// 回放缓冲（原始字节），用于切回会话时重建终端画面
+#[tauri::command]
+fn pty_snapshot(ptys: State<PtyMap>, id: String) -> Result<Vec<u8>, String> {
+    pty::snapshot(&ptys, &id)
+}
+
+/// 当前存活的 PTY 会话 id 列表（侧栏运行中标识）
+#[tauri::command]
+fn pty_list(ptys: State<PtyMap>) -> Vec<String> {
+    pty::list(&ptys)
 }
 
 #[tauri::command]
@@ -74,6 +89,8 @@ pub fn run() {
             resume_session,
             pty_write,
             pty_resize,
+            pty_snapshot,
+            pty_list,
             pty_close
         ])
         .run(tauri::generate_context!())

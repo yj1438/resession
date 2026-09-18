@@ -6,6 +6,7 @@
   --text: #d7dde4;
   --dim: #7d8590;
   --accent: #58a6ff;
+  --green: #23d18b;
 }
 
 * {
@@ -84,6 +85,7 @@ body {
 .session .row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
   margin-bottom: 3px;
 }
@@ -109,6 +111,12 @@ body {
 
 .session .count {
   color: var(--dim);
+}
+
+.dot {
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .content {
@@ -155,14 +163,82 @@ body {
   color: var(--dim);
 }
 
-.mono {
+.evt {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #161c24;
+}
+
+.evt-role {
+  min-width: 52px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.role-user {
+  color: var(--accent);
+}
+
+.role-assistant {
+  color: var(--green);
+}
+
+.role-system {
+  color: var(--dim);
+}
+
+.evt-blocks {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.evt-tool,
+.evt-toolresult {
+  color: var(--dim);
   font-family: Consolas, monospace;
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.terminal-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.term-close {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.term-close:hover {
+  color: #f14c4c;
+  border-color: #f14c4c;
 }
 
 .terminal {
   flex: 1;
-  padding: 6px;
+  padding: 4px 6px;
+  min-height: 0;
 }
 
 .empty {
@@ -183,4 +259,9 @@ body {
 
 .hint {
   color: var(--dim);
+}
+
+.mono {
+  font-family: Consolas, monospace;
+  font-size: 12px;
 }

@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import Sidebar from "./components/Sidebar";
 import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
@@ -23,6 +25,7 @@ const MOCK_SESSIONS: SessionMeta[] = [
 export default function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
   const [usingMock, setUsingMock] = useState(!isTauri);
+  const [activePtys, setActivePtys] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"transcript" | "terminal">("transcript");
@@ -36,6 +39,22 @@ export default function App() {
         setUsingMock(true);
       });
   }, []);
+
+  const refreshPtys = useCallback(() => {
+    if (!isTauri) return;
+    invoke<string[]>("pty_list")
+      .then(setActivePtys)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshPtys();
+    if (!isTauri) return;
+    // 后台 PTY 退出（用户在里面 /exit 或崩溃）时刷新运行中标识
+    let un: UnlistenFn | undefined;
+    void listen("pty-exit", () => refreshPtys()).then((u) => (un = u));
+    return () => un?.();
+  }, [refreshPtys]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -63,6 +82,7 @@ export default function App() {
         <Sidebar
           sessions={filtered}
           selectedId={selectedId}
+          activePtys={activePtys}
           onSelect={(id) => {
             setSelectedId(id);
             setTab("transcript");
@@ -89,7 +109,11 @@ export default function App() {
               {tab === "transcript" ? (
                 <TranscriptPane key={selected.id} session={selected} />
               ) : (
-                <TerminalPane key={selected.id} session={selected} />
+                <TerminalPane
+                  key={selected.id}
+                  session={selected}
+                  onPtyStateChange={refreshPtys}
+                />
               )}
             </>
           ) : (
@@ -103,7 +127,7 @@ export default function App() {
 
       <footer className="statusbar">
         {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"}
-        {isTauri ? " · PTY 就绪" : " · 浏览器模式（无 PTY）"}
+        {isTauri ? ` · ${activePtys.length} 个终端运行中` : " · 浏览器模式"}
       </footer>
     </div>
   );
