@@ -73,3 +73,11 @@ debug 构建运行时加载 `devUrl`（需 vite:5173 在跑），未起 vite 即
   重新生成 `src-tauri/icons/` 全套
 - **前端资源更新后**：必须重新走 `tauri build`（嵌入发生在编译期），只改 dist 不重编无效
 - **交叉编译/macOS**：见 architecture.md 平台矩阵；macOS 正式分发需签名+公证（自用可跳）
+
+## 6. 日常使用（自用部署）
+
+- **稳定副本**：`F:\git-workspace\ai\tools\ReSession.exe`（桌面快捷方式 `ReSession` 指向它）。
+  `target/` 会被 `cargo clean` 清掉，所以日常用这份拷贝
+- **更新方式**：改代码后 `npm run tauri build -- --no-bundle`，再手动把新 exe 覆盖到 tools 副本
+- **数据安全**：只读 `~/.claude/projects/`；ReSession 自身只写 `~/.resession/settings.json`（别名），
+  不动任何原生会话数据
