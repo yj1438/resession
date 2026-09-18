@@ -28,6 +28,7 @@ pub struct PtyHandle {
 }
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")] // 与前端 PtyStatus 镜像对齐（勿漏，同 SessionMeta）
 pub struct PtyStatus {
     pub id: String,
     pub last_output_ms: u64,

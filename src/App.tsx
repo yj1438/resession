@@ -93,11 +93,11 @@ export default function App() {
     () =>
       new Set(
         activePtys
-          .filter(
-            (p) =>
-              Date.now() - Math.max(p.lastOutputMs, activityRef.current[p.id] ?? 0) <
-              BUSY_MS,
-          )
+          .filter((p) => {
+            // ?? 0 兜底：字段缺失时不让 NaN 污染比较（宁可显示忙也别永远空闲）
+            const last = Math.max(p.lastOutputMs ?? 0, activityRef.current[p.id] ?? 0);
+            return Date.now() - last < BUSY_MS;
+          })
           .map((p) => p.id),
       ),
     // tick 参与：2s 脉冲让忙闲状态随时间推进
