@@ -41,6 +41,19 @@ export default function TerminalPane({ session }: { session: SessionMeta }) {
         return;
       }
       try {
+        // 先挂监听再 spawn，避免 claude 启动瞬间的输出落在监听建立之前
+        unlistens.push(
+          await listen<{ id: string; data: string }>("pty-out", (e) => {
+            if (ptyId && e.payload.id === ptyId) term.write(e.payload.data);
+          }),
+        );
+        unlistens.push(
+          await listen<{ id: string }>("pty-exit", (e) => {
+            if (ptyId && e.payload.id === ptyId)
+              term.writeln("\r\n\x1b[90m[进程已退出]\x1b[0m");
+          }),
+        );
+
         ptyId = await invoke<string>("resume_session", { meta: session });
         if (disposed) return;
         const id = ptyId;
@@ -57,18 +70,6 @@ export default function TerminalPane({ session }: { session: SessionMeta }) {
         };
         term.onResize(onResize);
         onResize();
-
-        unlistens.push(
-          await listen<{ id: string; data: string }>("pty-out", (e) => {
-            if (e.payload.id === id) term.write(e.payload.data);
-          }),
-        );
-        unlistens.push(
-          await listen<{ id: string }>("pty-exit", (e) => {
-            if (e.payload.id === id)
-              term.writeln("\r\n\x1b[90m[进程已退出]\x1b[0m");
-          }),
-        );
       } catch (e) {
         term.writeln(`\x1b[31m启动失败: ${String(e)}\x1b[0m`);
       }

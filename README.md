@@ -30,12 +30,20 @@
 ## 开发
 
 ```bash
-npm install          # 前端依赖
-npm run dev          # 前端开发服务器（M0 阶段用 mock 数据）
+npm install              # 前端依赖
+npm run tauri dev        # 完整开发模式（自动起 vite:5173 + 热重载）
+npm run dev              # 纯前端开发（浏览器，mock 数据，无后端）
+
+npm run tauri build -- --no-bundle   # 产出独立 exe（内嵌前端，无需 vite）
+# 产物：src-tauri/target/release/resession.exe
 
 cd crates/session-core
-cargo test           # 核心库测试（无需 MSVC，本地工具链即可）
+cargo test               # 核心库测试
 ```
+
+⚠️ **debug 版 exe 不能直接双击运行**：Tauri 在 debug 构建下加载 `devUrl`
+（localhost:5173），必须先有 vite 开发服务器（即用 `tauri dev`），
+否则窗口报 `ERR_CONNECTION_REFUSED`。要单独跑就编 release 版。
 
 本地 Rust 工具链（隔离安装，未动全局环境）见 `F:\git-workspace\ai\tools\`，
 编译时需要设置的环境变量封装在 `tools\build-cc-sessions.cmd` 可参考。
