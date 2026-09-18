@@ -26,6 +26,9 @@ pub trait SessionProvider: Send + Sync {
 
     /// 构造"在会话原目录恢复该会话"的命令。
     fn resume_command(&self, meta: &SessionMeta) -> Result<ResumeSpec, ScanError>;
+
+    /// 构造"在指定目录启动全新会话"的命令（无参数，纯 `claude`）。
+    fn new_session_command(&self, cwd: PathBuf) -> Result<ResumeSpec, ScanError>;
 }
 
 /// 交给 PTY 层直接 spawn 的命令。PTY 层不解析、不修改。

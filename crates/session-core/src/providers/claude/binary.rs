@@ -101,6 +101,20 @@ pub fn build_resume_spec(meta: &SessionMeta) -> Result<ResumeSpec, ScanError> {
     })
 }
 
+/// 组装全新会话：同目录跑裸 `claude`，无任何参数。
+pub fn build_new_session_spec(cwd: PathBuf) -> Result<ResumeSpec, ScanError> {
+    let binary = find_claude_binary().ok_or_else(|| {
+        ScanError::RootMissing("claude binary not found on PATH or common locations".into())
+    })?;
+    let (program, prefix) = spawn_wrapping(binary);
+    let cwd = if cwd.is_dir() { cwd } else { PathBuf::from(".") };
+    Ok(ResumeSpec {
+        program,
+        args: prefix,
+        cwd,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

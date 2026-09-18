@@ -1,12 +1,14 @@
 import { useState } from "react";
-import type { SessionMeta } from "../types";
+import type { PtyStatus, SessionMeta } from "../types";
 
 interface Props {
   sessions: SessionMeta[];
   selectedId: string | null;
   activeIds: string[];
   busyIds: Set<string>;
+  runningPtys: PtyStatus[];
   onSelect: (id: string) => void;
+  onViewPty: (ptyId: string) => void;
   onRename: (session: SessionMeta, name: string) => void;
 }
 
@@ -25,7 +27,9 @@ export default function Sidebar({
   selectedId,
   activeIds,
   busyIds,
+  runningPtys,
   onSelect,
+  onViewPty,
   onRename,
 }: Props) {
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(
@@ -34,6 +38,29 @@ export default function Sidebar({
 
   return (
     <aside className="sidebar">
+      {runningPtys.length > 0 && (
+        <div className="chips">
+          <span className="chips-label">运行中</span>
+          {runningPtys.map((p) => {
+            const s = sessions.find((x) => x.id === p.id);
+            const busy = busyIds.has(p.id);
+            const label = s?.title ?? (p.id.startsWith("new:") ? "新会话" : p.id.slice(0, 8));
+            return (
+              <button
+                key={p.id}
+                className="chip"
+                title={`${label}${busy ? "（执行中）" : "（空闲）"}`}
+                onClick={() => (s ? onSelect(s.id) : onViewPty(p.id))}
+              >
+                <span className={busy ? "dot busy" : "dot idle"}>
+                  {busy ? "●" : "○"}
+                </span>
+                <span className="chip-label">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <ul>
         {sessions.map((s) => {
           const running = activeIds.includes(s.id);

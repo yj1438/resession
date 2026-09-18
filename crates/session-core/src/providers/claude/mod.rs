@@ -71,6 +71,10 @@ impl SessionProvider for ClaudeProvider {
     fn resume_command(&self, meta: &SessionMeta) -> Result<ResumeSpec, ScanError> {
         binary::build_resume_spec(meta)
     }
+
+    fn new_session_command(&self, cwd: PathBuf) -> Result<ResumeSpec, ScanError> {
+        binary::build_new_session_spec(cwd)
+    }
 }
 
 #[cfg(test)]

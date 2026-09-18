@@ -1,6 +1,9 @@
 mod pty;
 mod settings;
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use session_core::{registry, Event, SessionMeta, SessionProvider};
 use tauri::{AppHandle, State};
 
@@ -108,9 +111,66 @@ fn pty_close(ptys: State<PtyMap>, id: String) -> Result<(), String> {
     pty::close(&ptys, &id)
 }
 
+/// 已知项目列表（从会话 cwd 去重，按最近活跃倒序）——"新会话"面板的数据源
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct KnownProject {
+    path: String,
+    last_active: Option<String>,
+}
+
+#[tauri::command]
+fn known_projects() -> Result<Vec<KnownProject>, String> {
+    let mut all = Vec::new();
+    for p in registry() {
+        if let Ok(mut s) = p.scan() {
+            all.append(&mut s);
+        }
+    }
+    // cwd -> 最近 modified_at（ISO 字符串可直接比较）
+    let mut latest: HashMap<String, String> = HashMap::new();
+    for m in all {
+        let Some(cwd) = m.cwd else { continue };
+        let entry = latest.entry(cwd).or_default();
+        if m.modified_at.as_deref().unwrap_or("") > entry.as_str() {
+            *entry = m.modified_at.unwrap_or_default();
+        }
+    }
+    let mut projects: Vec<KnownProject> = latest
+        .into_iter()
+        .map(|(path, last_active)| KnownProject {
+            path,
+            last_active: Some(last_active).filter(|s| !s.is_empty()),
+        })
+        .collect();
+    projects.sort_by(|a, b| b.last_active.cmp(&a.last_active));
+    Ok(projects)
+}
+
+/// 在指定目录启动全新原生会话（裸 `claude`），PTY 用合成键 `new:<uuid>`；
+/// claude 启动后会写入 jsonl，下次扫描即出现在会话列表。
+#[tauri::command]
+fn new_session(
+    app: AppHandle,
+    ptys: State<PtyMap>,
+    cwd: String,
+) -> Result<String, String> {
+    let path = PathBuf::from(&cwd);
+    if !path.is_dir() {
+        return Err(format!("目录不存在: {cwd}"));
+    }
+    let spec = provider_for("claude")?
+        .new_session_command(path)
+        .map_err(|e| e.to_string())?;
+    let id = format!("new:{}", uuid::Uuid::new_v4());
+    pty::spawn(&app, &ptys, id.clone(), spec, 24, 80)?;
+    Ok(id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(PtyMap::default())
         .manage(SettingsState(std::sync::Mutex::new(Settings::load())))
         .invoke_handler(tauri::generate_handler![
@@ -118,6 +178,8 @@ pub fn run() {
             load_transcript,
             rename_session,
             resume_session,
+            new_session,
+            known_projects,
             pty_write,
             pty_resize,
             pty_snapshot,

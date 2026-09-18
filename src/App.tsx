@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import Sidebar from "./components/Sidebar";
 import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
+import NewSessionPanel from "./components/NewSessionPanel";
 import { invoke, isTauri } from "./api";
 import type { PtyStatus, SessionMeta } from "./types";
 
@@ -36,6 +37,9 @@ export default function App() {
   const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
+  const [ptyViewId, setPtyViewId] = useState<string | null>(null);
 
   // pty-out 高频到达：写入 ref，靠 2s tick 驱动重渲染（避免每块输出一次 setState）
   const activityRef = useRef<Record<string, number>>({});
@@ -86,8 +90,13 @@ export default function App() {
   }, [sessions, query]);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
-  // 单视图状态机：会话有存活 PTY → 终端态；否则 → 转录态（历史态）
-  const running = selected ? activePtys.some((p) => p.id === selected.id) : false;
+  // 视图优先级：选中会话的终端 > 正在观看的合成终端 > 转录态 > 空
+  const runningSelected = selected
+    ? activePtys.some((p) => p.id === selected.id)
+    : false;
+  const ptyAlive = ptyViewId
+    ? activePtys.some((p) => p.id === ptyViewId)
+    : false;
 
   const busyIds = useMemo(
     () =>
@@ -111,6 +120,17 @@ export default function App() {
     void invoke<string>("resume_session", { meta: s })
       .then(() => refreshPtys())
       .catch(() => {});
+  };
+
+  const startNewSession = (cwd: string) => {
+    if (!isTauri) return;
+    void invoke<string>("new_session", { cwd })
+      .then((id) => {
+        setPtyViewId(id);
+        setPanelOpen(false);
+        refreshPtys();
+      })
+      .catch((e) => console.error("new_session failed:", e));
   };
 
   const handleRename = (s: SessionMeta, name: string) => {
@@ -140,6 +160,9 @@ export default function App() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button className="new-btn" onClick={() => setPanelOpen(true)}>
+          ➕ 新会话
+        </button>
       </header>
 
       <div className="main">
@@ -148,42 +171,58 @@ export default function App() {
           selectedId={selectedId}
           activeIds={activeIds}
           busyIds={busyIds}
-          onSelect={(id) => setSelectedId(id)}
+          runningPtys={activePtys}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setPtyViewId(null);
+          }}
+          onViewPty={(id) => {
+            setSelectedId(null);
+            setPtyViewId(id);
+          }}
           onRename={handleRename}
         />
 
         <section className="content">
-          {selected ? (
-            running ? (
-              <TerminalPane
-                key={selected.id}
-                session={selected}
-                onPtyStateChange={refreshPtys}
-              />
-            ) : (
-              <>
-                <div className="session-bar">
-                  <span className="session-bar-title">
-                    {selected.title ?? "(无标题)"}
-                  </span>
-                  <button
-                    className="resume-btn"
-                    onClick={() => resumeSession(selected)}
-                  >
-                    ▶ 恢复会话
-                  </button>
-                </div>
-                <TranscriptPane key={selected.id} session={selected} />
-              </>
-            )
+          {runningSelected && selected ? (
+            <TerminalPane
+              key={selected.id}
+              session={selected}
+              onPtyStateChange={refreshPtys}
+            />
+          ) : ptyAlive ? (
+            <TerminalPane
+              key={ptyViewId}
+              attachPtyId={ptyViewId ?? undefined}
+              onPtyStateChange={refreshPtys}
+            />
+          ) : selected ? (
+            <>
+              <div className="session-bar">
+                <span className="session-bar-title">
+                  {selected.title ?? "(无标题)"}
+                </span>
+                <button
+                  className="resume-btn"
+                  onClick={() => resumeSession(selected)}
+                >
+                  ▶ 恢复会话
+                </button>
+              </div>
+              <TranscriptPane key={selected.id} session={selected} />
+            </>
           ) : (
             <div className="empty">
-              <p>从左侧选择一个会话</p>
+              <p>从左侧选择一个会话，或新建一个</p>
               <p className="hint">转录找回记忆 → 恢复会话进入原生终端</p>
             </div>
           )}
         </section>
       </div>
+
+      {panelOpen && (
+        <NewSessionPanel onPick={startNewSession} onClose={() => setPanelOpen(false)} />
+      )}
 
       <footer className="statusbar" data-tick={tick}>
         {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"} ·{" "}

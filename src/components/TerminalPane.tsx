@@ -35,14 +35,17 @@ const TERMINAL_THEME = {
   brightWhite: "#e5e5e5",
 };
 
-// PTY 生命周期归后端（以会话 id 为键常驻）；本组件只是"观看窗口"：
-// 挂载 = 附着（幂等 spawn + 回放缓冲），卸载 = 仅断开观看，不关闭 PTY。
-// 手动关闭走页头按钮。字节级传输（Uint8Array），xterm 自带 UTF-8 状态机。
+// 终端观看窗口。两种进入方式：
+// 1. session    —— 幂等 resume（已存在则附着），用于已有会话
+// 2. attachPtyId —— 直接附着到已有 PTY（"新会话"的合成键终端）
+// PTY 生命周期归后端；卸载仅断开观看。字节级传输，xterm 自带 UTF-8 状态机。
 export default function TerminalPane({
   session,
+  attachPtyId,
   onPtyStateChange,
 }: {
-  session: SessionMeta;
+  session?: SessionMeta;
+  attachPtyId?: string;
   onPtyStateChange?: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -71,14 +74,11 @@ export default function TerminalPane({
 
     (async () => {
       if (!isTauri) {
-        term.writeln(`\x1b[36m$\x1b[0m claude --resume ${session.id}`);
-        term.writeln(
-          `\x1b[33m[ReSession]\x1b[0m 浏览器模式无 PTY；请在 Tauri 窗口内使用`,
-        );
+        term.writeln(`\x1b[33m[ReSession]\x1b[0m 浏览器模式无 PTY；请在 Tauri 窗口内使用`);
         return;
       }
       try {
-        // 先挂监听再 spawn，避免首帧输出落在监听之前
+        // 先挂监听再 attach，避免首帧输出落在监听之前
         unlistens.push(
           await listen<PtyEvent>("pty-out", (e) => {
             if (ptyId && e.payload.id === ptyId)
@@ -96,11 +96,15 @@ export default function TerminalPane({
           }),
         );
 
-        ptyId = await invoke<string>("resume_session", { meta: session });
-        if (disposed) return;
+        ptyId =
+          attachPtyId ??
+          (session
+            ? await invoke<string>("resume_session", { meta: session })
+            : null);
+        if (disposed || !ptyId) return;
         ptyIdRef.current = ptyId;
 
-        // 切回已打开的会话：回放缓冲，重建画面
+        // 切回已打开的终端：回放缓冲，重建画面
         const snap = await invoke<number[]>("pty_snapshot", { id: ptyId });
         if (disposed) return;
         if (snap.length > 0) term.write(Uint8Array.from(snap));
@@ -145,7 +149,9 @@ export default function TerminalPane({
     <div className="terminal-wrap">
       <div className="terminal-bar">
         <span className="hint mono">
-          原生 PTY · claude --resume {session.id.slice(0, 8)}…
+          {session
+            ? `原生 PTY · claude --resume ${session.id.slice(0, 8)}…`
+            : "新会话 · 原生 claude"}
         </span>
         <button className="term-close" onClick={closePty}>
           ⏹ 关闭终端
