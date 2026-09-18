@@ -23,6 +23,21 @@ pub struct PtyHandle {
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
     /// 原始字节缓冲：前端切走再切回时回放（字节级，避免多字节字符跨块损坏）
     buffer: Arc<Mutex<Vec<u8>>>,
+    /// 最后一次输出的 Unix 毫秒（忙闲感知信号：有输出=活跃）
+    last_output: Arc<Mutex<u64>>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct PtyStatus {
+    pub id: String,
+    pub last_output_ms: u64,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[derive(Default)]
@@ -94,6 +109,7 @@ pub fn spawn(
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let last_output = Arc::new(Mutex::new(now_ms()));
 
     map.0.lock().unwrap().insert(
         id.clone(),
@@ -102,6 +118,7 @@ pub fn spawn(
             master: pair.master,
             child: child.clone(),
             buffer: Arc::clone(&buffer),
+            last_output: Arc::clone(&last_output),
         },
     );
 
@@ -122,6 +139,7 @@ pub fn spawn(
                         }
                         b.extend_from_slice(&buf[..n]);
                     }
+                    *last_output.lock().unwrap() = now_ms();
                     if app
                         .emit(
                             "pty-out",
@@ -175,9 +193,16 @@ pub fn snapshot(map: &PtyMap, id: &str) -> Result<Vec<u8>, String> {
     Ok(h.buffer.lock().unwrap().clone())
 }
 
-/// 仍存活（运行中）的 PTY 会话 id 列表
-pub fn list(map: &PtyMap) -> Vec<String> {
-    map.0.lock().unwrap().keys().cloned().collect()
+/// 仍存活的 PTY 状态（含最后输出时间，供忙闲感知）
+pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
+    map.0.lock()
+        .unwrap()
+        .iter()
+        .map(|(id, h)| PtyStatus {
+            id: id.clone(),
+            last_output_ms: *h.last_output.lock().unwrap(),
+        })
+        .collect()
 }
 
 pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {

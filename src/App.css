@@ -114,9 +114,16 @@ body {
 }
 
 .dot {
-  color: var(--green);
   font-size: 11px;
   line-height: 1;
+}
+
+.dot.busy {
+  color: var(--green);
+}
+
+.dot.idle {
+  color: #3a7d5c;
 }
 
 .content {
@@ -183,6 +190,99 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 工具调用折叠块 */
+.tool {
+  margin: 2px 0;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+
+.tool summary {
+  color: var(--dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tool summary:hover {
+  color: var(--text);
+}
+
+.tool-body {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: #0a0e12;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--dim);
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 助手消息 markdown */
+.md {
+  line-height: 1.55;
+}
+
+.md p {
+  margin: 0.35em 0;
+}
+
+.md pre {
+  background: #0a0e12;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+.md code {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+  background: #0a0e12;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.md pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.md table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+
+.md blockquote {
+  border-left: 3px solid var(--border);
+  margin: 0.5em 0;
+  padding-left: 10px;
+  color: var(--dim);
+}
+
+.md ul,
+.md ol {
+  margin: 0.35em 0;
+  padding-left: 1.4em;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.6em 0 0.3em;
+  font-size: 1em;
 }
 
 .terminal-wrap {

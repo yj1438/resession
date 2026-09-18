@@ -97,9 +97,9 @@ fn pty_snapshot(ptys: State<PtyMap>, id: String) -> Result<Vec<u8>, String> {
     pty::snapshot(&ptys, &id)
 }
 
-/// 当前存活的 PTY 会话 id 列表（侧栏运行中标识）
+/// 当前存活的 PTY 状态列表（侧栏运行中/忙闲标识）
 #[tauri::command]
-fn pty_list(ptys: State<PtyMap>) -> Vec<String> {
+fn pty_list(ptys: State<PtyMap>) -> Vec<pty::PtyStatus> {
     pty::list(&ptys)
 }
 

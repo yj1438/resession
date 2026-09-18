@@ -1,9 +1,12 @@
 //! JSONL 宽容解析：单行失败跳过、未知类型忽略、字段缺失降级。
 //! 格式实测笔记见 docs/data-formats.md。
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::SystemTime;
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -99,8 +102,31 @@ fn read_lines(path: &Path) -> std::io::Result<impl Iterator<Item = RawLine>> {
     }))
 }
 
+/// mtime+size 元数据缓存：扫描只重读变过的文件（性能设计见 architecture.md 3.1）
+struct CachedMeta {
+    mtime: SystemTime,
+    len: u64,
+    meta: SessionMeta,
+}
+
+fn cache() -> &'static Mutex<HashMap<PathBuf, CachedMeta>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedMeta>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 /// 流式扫描单个会话文件，提取列表所需的元数据（不保留正文）。
 pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<SessionMeta> {
+    let md = std::fs::metadata(path)?;
+    let mtime = md.modified()?;
+    let len = md.len();
+    {
+        let c = cache().lock().unwrap();
+        if let Some(hit) = c.get(path) {
+            if hit.mtime == mtime && hit.len == len {
+                return Ok(hit.meta.clone());
+            }
+        }
+    }
     let id = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -155,13 +181,12 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
     }
 
     // modified 取文件系统时间戳（追加写 ⇒ mtime 即最后活动时间）
-    let modified_at = std::fs::metadata(path)?
-        .modified()
+    let modified_at = mtime
+        .duration_since(std::time::UNIX_EPOCH)
         .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| format_secs(d.as_secs()));
 
-    Ok(SessionMeta {
+    let meta = SessionMeta {
         provider: "claude".into(),
         id,
         cwd,
@@ -171,7 +196,16 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
         modified_at,
         message_count,
         source_file: path.to_path_buf(),
-    })
+    };
+    cache().lock().unwrap().insert(
+        path.to_path_buf(),
+        CachedMeta {
+            mtime,
+            len,
+            meta: meta.clone(),
+        },
+    );
+    Ok(meta)
 }
 
 /// 完整转录 → IR。只保留 user/assistant 消息，其余行类型忽略。

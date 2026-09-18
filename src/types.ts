@@ -25,3 +25,8 @@ export interface Event {
   blocks: Block[];
   sidechain: boolean;
 }
+
+export interface PtyStatus {
+  id: string;
+  lastOutputMs: number;
+}

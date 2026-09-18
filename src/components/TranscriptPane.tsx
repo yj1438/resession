@@ -1,20 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github-dark.css";
 import { invoke, isTauri } from "../api";
 import type { Block, Event, SessionMeta } from "../types";
 
-function BlockView({ block }: { block: Block }) {
+// 助手的 text 块按 markdown 渲染；用户消息保持纯文本
+function BlockView({ block, markdown }: { block: Block; markdown: boolean }) {
   switch (block.kind) {
     case "text":
-      return <div className="evt-text">{block.text}</div>;
+      return markdown ? (
+        <div className="md">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+          >
+            {block.text}
+          </ReactMarkdown>
+        </div>
+      ) : (
+        <div className="evt-text">{block.text}</div>
+      );
     case "toolUse":
       return (
-        <div className="evt-tool">
-          ⚙ {block.name}
-          {block.brief && <span className="tool-brief"> {block.brief}</span>}
-        </div>
+        <details className="tool">
+          <summary>⚙ {block.name}</summary>
+          <pre className="tool-body">{block.brief}</pre>
+        </details>
       );
     case "toolResult":
-      return <div className="evt-toolresult">↳ {block.brief}</div>;
+      return (
+        <details className="tool">
+          <summary>↳ 结果</summary>
+          <pre className="tool-body">{block.brief}</pre>
+        </details>
+      );
     default:
       return null;
   }
@@ -28,14 +49,14 @@ function EventView({ event, dim }: { event: Event; dim?: boolean }) {
       </span>
       <div className="evt-blocks">
         {event.blocks.map((b, j) => (
-          <BlockView key={j} block={b} />
+          <BlockView key={j} block={b} markdown={event.role === "assistant"} />
         ))}
       </div>
     </div>
   );
 }
 
-// 连续的 sidechain 事件折叠为一个可展开块（M1.5 方案 b）
+// 连续的 sidechain 事件折叠为一个可展开块
 function SidechainRun({ events }: { events: Event[] }) {
   const [open, setOpen] = useState(false);
   return (

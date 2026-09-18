@@ -4,7 +4,8 @@ import type { SessionMeta } from "../types";
 interface Props {
   sessions: SessionMeta[];
   selectedId: string | null;
-  activePtys: string[];
+  activeIds: string[];
+  busyIds: Set<string>;
   onSelect: (id: string) => void;
   onRename: (session: SessionMeta, name: string) => void;
 }
@@ -22,7 +23,8 @@ function relativeTime(iso: string | null): string {
 export default function Sidebar({
   sessions,
   selectedId,
-  activePtys,
+  activeIds,
+  busyIds,
   onSelect,
   onRename,
 }: Props) {
@@ -34,7 +36,8 @@ export default function Sidebar({
     <aside className="sidebar">
       <ul>
         {sessions.map((s) => {
-          const running = activePtys.includes(s.id);
+          const running = activeIds.includes(s.id);
+          const busy = busyIds.has(s.id);
           const isEditing = editing?.id === s.id;
           return (
             <li
@@ -46,8 +49,11 @@ export default function Sidebar({
                 <span className="time">{relativeTime(s.modifiedAt)}</span>
                 <span className="project">{s.cwd ?? s.projectDir}</span>
                 {running && (
-                  <span className="dot" title="终端运行中">
-                    ●
+                  <span
+                    className={busy ? "dot busy" : "dot idle"}
+                    title={busy ? "任务执行中" : "空闲等待输入"}
+                  >
+                    {busy ? "●" : "○"}
                   </span>
                 )}
               </div>

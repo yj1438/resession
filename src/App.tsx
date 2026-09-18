@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { listen } from "@tauri-apps/api/event";
 import Sidebar from "./components/Sidebar";
 import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
 import { invoke, isTauri } from "./api";
-import type { SessionMeta } from "./types";
+import type { PtyStatus, SessionMeta } from "./types";
 
 // 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
 const MOCK_SESSIONS: SessionMeta[] = [
@@ -22,12 +22,28 @@ const MOCK_SESSIONS: SessionMeta[] = [
   },
 ];
 
+// 输出静默超过该时长视为空闲（近似值：静默执行长任务会误判，见 roadmap）
+const BUSY_MS = 4000;
+
+interface PtyEvent {
+  id: string;
+  data: number[];
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
   const [usingMock, setUsingMock] = useState(!isTauri);
-  const [activePtys, setActivePtys] = useState<string[]>([]);
+  const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // pty-out 高频到达：写入 ref，靠 2s tick 驱动重渲染（避免每块输出一次 setState）
+  const activityRef = useRef<Record<string, number>>({});
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 2000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -41,7 +57,7 @@ export default function App() {
 
   const refreshPtys = useCallback(() => {
     if (!isTauri) return;
-    invoke<string[]>("pty_list")
+    invoke<PtyStatus[]>("pty_list")
       .then(setActivePtys)
       .catch(() => {});
   }, []);
@@ -49,11 +65,16 @@ export default function App() {
   useEffect(() => {
     refreshPtys();
     if (!isTauri) return;
-    // 后台 PTY 退出（用户在里面 /exit、⏹ 关闭或崩溃）时刷新运行中标识，
-    // 视图随之回到转录态
-    let un: UnlistenFn | undefined;
-    void listen("pty-exit", () => refreshPtys()).then((u) => (un = u));
-    return () => un?.();
+    let unExit: UnlistenFn | undefined;
+    let unOut: UnlistenFn | undefined;
+    void listen("pty-exit", () => refreshPtys()).then((u) => (unExit = u));
+    void listen<PtyEvent>("pty-out", (e) => {
+      activityRef.current[e.payload.id] = Date.now();
+    }).then((u) => (unOut = u));
+    return () => {
+      unExit?.();
+      unOut?.();
+    };
   }, [refreshPtys]);
 
   const filtered = useMemo(() => {
@@ -66,7 +87,24 @@ export default function App() {
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
   // 单视图状态机：会话有存活 PTY → 终端态；否则 → 转录态（历史态）
-  const running = selected ? activePtys.includes(selected.id) : false;
+  const running = selected ? activePtys.some((p) => p.id === selected.id) : false;
+
+  const busyIds = useMemo(
+    () =>
+      new Set(
+        activePtys
+          .filter(
+            (p) =>
+              Date.now() - Math.max(p.lastOutputMs, activityRef.current[p.id] ?? 0) <
+              BUSY_MS,
+          )
+          .map((p) => p.id),
+      ),
+    // tick 参与：2s 脉冲让忙闲状态随时间推进
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activePtys, tick],
+  );
+  const activeIds = useMemo(() => activePtys.map((p) => p.id), [activePtys]);
 
   const resumeSession = (s: SessionMeta) => {
     if (!isTauri) return;
@@ -108,7 +146,8 @@ export default function App() {
         <Sidebar
           sessions={filtered}
           selectedId={selectedId}
-          activePtys={activePtys}
+          activeIds={activeIds}
+          busyIds={busyIds}
           onSelect={(id) => setSelectedId(id)}
           onRename={handleRename}
         />
@@ -146,9 +185,11 @@ export default function App() {
         </section>
       </div>
 
-      <footer className="statusbar">
-        {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"}
-        {isTauri ? ` · ${activePtys.length} 个终端运行中` : " · 浏览器模式"}
+      <footer className="statusbar" data-tick={tick}>
+        {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"} ·{" "}
+        {activePtys.filter((p) => busyIds.has(p.id)).length} 忙 /{" "}
+        {activePtys.length} 跑
+        {!isTauri && " · 浏览器模式"}
       </footer>
     </div>
   );
