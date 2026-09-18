@@ -1,12 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
+import { invoke, isTauri } from "./api";
 import type { SessionMeta } from "./types";
 
-type Tab = "transcript" | "terminal";
-
-// M0 用 mock 数据铺 UI；M1 换成 invoke("scan_sessions") 的真实返回
+// 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
 const MOCK_SESSIONS: SessionMeta[] = [
   {
     provider: "claude",
@@ -19,24 +18,24 @@ const MOCK_SESSIONS: SessionMeta[] = [
     messageCount: 42,
     sourceFile: "C:\\Users\\yinjie\\.claude\\projects\\mock.jsonl",
   },
-  {
-    provider: "claude",
-    id: "11111111-2222-3333-4444-555555555555",
-    cwd: "F:\\git-workspace\\h5-mario-game",
-    projectDir: "F--git-workspace-h5-mario-game",
-    title: "h5-mario-game（mock）",
-    createdAt: "2026-07-01T09:00:00Z",
-    modifiedAt: "2026-09-05T18:00:00Z",
-    messageCount: 128,
-    sourceFile: "C:\\Users\\yinjie\\.claude\\projects\\mock2.jsonl",
-  },
 ];
 
 export default function App() {
-  const [sessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
+  const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
+  const [usingMock, setUsingMock] = useState(!isTauri);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("transcript");
+  const [tab, setTab] = useState<"transcript" | "terminal">("transcript");
+
+  useEffect(() => {
+    if (!isTauri) return;
+    invoke<SessionMeta[]>("scan_sessions")
+      .then(setSessions)
+      .catch((e) => {
+        console.error("scan_sessions failed:", e);
+        setUsingMock(true);
+      });
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -61,10 +60,14 @@ export default function App() {
       </header>
 
       <div className="main">
-        <Sidebar sessions={filtered} selectedId={selectedId} onSelect={(id) => {
-          setSelectedId(id);
-          setTab("transcript");
-        }} />
+        <Sidebar
+          sessions={filtered}
+          selectedId={selectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setTab("transcript");
+          }}
+        />
 
         <section className="content">
           {selected ? (
@@ -84,9 +87,9 @@ export default function App() {
                 </button>
               </nav>
               {tab === "transcript" ? (
-                <TranscriptPane session={selected} />
+                <TranscriptPane key={selected.id} session={selected} />
               ) : (
-                <TerminalPane session={selected} />
+                <TerminalPane key={selected.id} session={selected} />
               )}
             </>
           ) : (
@@ -99,7 +102,8 @@ export default function App() {
       </div>
 
       <footer className="statusbar">
-        {sessions.length} 个会话 · provider: claude · PTY: 未连接（M1）
+        {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"}
+        {isTauri ? " · PTY 就绪" : " · 浏览器模式（无 PTY）"}
       </footer>
     </div>
   );

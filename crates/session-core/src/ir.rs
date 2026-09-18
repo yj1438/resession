@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// 一个被发现的历史会话。`source_file` 是 `load_transcript` 的输入。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")] // 与 src/types.ts 的 TS 镜像字段对齐
 pub struct SessionMeta {
     pub provider: String,
     pub id: String,

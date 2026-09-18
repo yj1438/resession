@@ -1,0 +1,4 @@
+# 本仓库统一使用 MSVC host 工具链（Tauri 在 Windows 的官方目标）。
+# 工具链本体隔离安装在 F:\git-workspace\ai\tools\rust（见 tools\build-cc-sessions.cmd 的环境变量）。
+[toolchain]
+channel = "stable-x86_64-pc-windows-msvc"
