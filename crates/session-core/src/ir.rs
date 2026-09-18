@@ -45,4 +45,7 @@ pub struct Event {
     pub role: Role,
     pub timestamp: Option<String>,
     pub blocks: Vec<Block>,
+    /// 子 agent（sidechain）内部消息；`serde(default)` 保证旧数据兼容
+    #[serde(default)]
+    pub sidechain: bool,
 }

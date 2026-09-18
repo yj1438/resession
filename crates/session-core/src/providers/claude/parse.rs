@@ -20,6 +20,8 @@ struct RawLine {
     timestamp: Option<String>,
     cwd: Option<String>,
     summary: Option<String>,
+    #[serde(rename = "customTitle")]
+    custom_title: Option<String>,
     #[serde(rename = "isSidechain")]
     is_sidechain: Option<bool>,
 }
@@ -105,7 +107,7 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
         .unwrap_or_default()
         .to_string();
 
-    let title: Option<String> = None; // /rename 自定义标题（字段待确认，先留空）
+    let mut title: Option<String> = None; // /rename → custom-title 行（实测格式见 data-formats.md）
     let mut summary: Option<String> = None;
     let mut first_user_text: Option<String> = None;
     let mut cwd: Option<String> = None;
@@ -122,8 +124,15 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
         }
         match kind {
             "summary" => {
-                if summary.is_none() {
+                // 重复出现取最后一次（compact 会刷新摘要）
+                if raw.summary.is_some() {
                     summary = raw.summary.clone();
+                }
+            }
+            // /rename 写入的会话名，后写覆盖前写
+            "custom-title" => {
+                if raw.custom_title.is_some() {
+                    title = raw.custom_title.clone();
                 }
             }
             "user" | "assistant" => {
@@ -179,6 +188,7 @@ pub fn load_events(path: &Path) -> std::io::Result<Vec<Event>> {
             role,
             timestamp: raw.timestamp,
             blocks,
+            sidechain: raw.is_sidechain.unwrap_or(false),
         });
     }
     Ok(events)
@@ -288,6 +298,37 @@ mod tests {
             events[0].blocks,
             vec![Block::Text { text: "帮我修一下登录".into() }]
         );
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn custom_title_wins_and_sidechain_flagged() {
+        let dir = std::env::temp_dir().join("resession-test-title");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("babe0000-0000-0000-0000-000000000000.jsonl");
+        std::fs::write(
+            &file,
+            concat!(
+                "{\"type\":\"summary\",\"summary\":\"旧摘要\"}\n",
+                "{\"type\":\"custom-title\",\"customTitle\":\"我的会话名\"}\n",
+                "{\"type\":\"user\",\"isSidechain\":true,\"message\":{\"role\":\"user\",\"content\":\"内部消息\"},",
+                "\"timestamp\":\"2026-09-08T10:00:00Z\"}\n",
+                "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"可见消息\"},",
+                "\"timestamp\":\"2026-09-08T10:01:00Z\"}\n"
+            ),
+        )
+        .unwrap();
+
+        // 标题优先级：custom-title > summary
+        let meta = scan_session_file(&file, "proj").unwrap();
+        assert_eq!(meta.title.as_deref(), Some("我的会话名"));
+
+        // 转录包含 sidechain 事件但带标记，由 UI 决定折叠展示
+        let events = load_events(&file).unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(events[0].sidechain);
+        assert!(!events[1].sidechain);
 
         std::fs::remove_file(&file).unwrap();
     }

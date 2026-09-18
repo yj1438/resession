@@ -23,4 +23,5 @@ export interface Event {
   role: Role;
   timestamp: string | null;
   blocks: Block[];
+  sidechain: boolean;
 }
