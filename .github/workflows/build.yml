@@ -1,0 +1,52 @@
+# 双平台构建：测试 → tauri build（免打包）→ 产物上传
+# 触发：push main（日常验证）/ 手动 / v* 标签（发版）
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: ReSession-windows-x64
+            bin: src-tauri/target/release/resession.exe
+          - os: macos-latest
+            artifact: ReSession-macos-arm64
+            bin: src-tauri/target/release/resession
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # 平台无关的核心库测试（macOS 上跑通即验证编译链路）
+      - name: Run session-core tests
+        working-directory: crates/session-core
+        run: cargo test
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Build (no bundle)
+        run: npm run tauri build -- --no-bundle
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.bin }}
+          if-no-files-found: error
