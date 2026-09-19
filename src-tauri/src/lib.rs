@@ -65,6 +65,38 @@ fn rename_session(
     s.save()
 }
 
+#[tauri::command]
+fn get_settings(settings: State<SettingsState>) -> Settings {
+    settings.0.lock().unwrap().clone()
+}
+
+/// 保存设置；claude 路径覆盖立即生效（影响后续 spawn），忙闲阈值由前端读取
+#[tauri::command]
+fn save_settings(
+    settings: State<SettingsState>,
+    claude_path: Option<String>,
+    busy_ms: u64,
+) -> Result<Settings, String> {
+    let mut s = settings.0.lock().unwrap();
+    s.claude_path = claude_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(str::to_string);
+    s.busy_ms = busy_ms.clamp(1000, 30000);
+    s.save()?;
+    session_core::set_claude_binary_override(s.claude_path.clone());
+    Ok(s.clone())
+}
+
+/// 删除单个别名（key 形如 "claude:<uuid>"）
+#[tauri::command]
+fn remove_alias(settings: State<SettingsState>, key: String) -> Result<(), String> {
+    let mut s = settings.0.lock().unwrap();
+    s.aliases.remove(&key);
+    s.save()
+}
+
 /// 全文搜索对话正文（v1 设计见 architecture.md 3.2b）。
 /// 结果按会话最近活跃排序，截断 50 条；标题套用别名。
 #[tauri::command]
@@ -205,15 +237,20 @@ fn new_session(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let loaded = Settings::load();
+    session_core::set_claude_binary_override(loaded.claude_path.clone());
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(PtyMap::default())
-        .manage(SettingsState(std::sync::Mutex::new(Settings::load())))
+        .manage(SettingsState(std::sync::Mutex::new(loaded)))
         .invoke_handler(tauri::generate_handler![
             scan_sessions,
             load_transcript,
             rename_session,
             search_sessions,
+            get_settings,
+            save_settings,
+            remove_alias,
             resume_session,
             new_session,
             known_projects,

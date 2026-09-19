@@ -604,3 +604,66 @@ mark {
   padding: 16px 12px;
   cursor: default;
 }
+
+/* 设置面板 */
+.settings-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.set-label {
+  color: var(--dim);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.full {
+  width: 100%;
+}
+
+.alias-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.alias-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.alias-list li:last-child {
+  border-bottom: none;
+}
+
+.alias-name {
+  font-weight: 600;
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alias-key {
+  flex: 1;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.close-right {
+  margin-left: auto;
+}

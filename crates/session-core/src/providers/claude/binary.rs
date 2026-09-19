@@ -2,12 +2,27 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 
 use crate::ir::SessionMeta;
 use crate::provider::{ResumeSpec, ScanError};
 
-/// 探测 claude 可执行体：PATH 优先，再试常见安装位置。
+/// 用户显式指定的路径（设置页写入），优先于自动探测
+fn override_path() -> &'static Mutex<Option<PathBuf>> {
+    static O: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+    O.get_or_init(|| Mutex::new(None))
+}
+
+pub fn set_override(path: Option<String>) {
+    *override_path().lock().unwrap() = path.map(PathBuf::from);
+}
+
+/// 探测 claude 可执行体：用户设置优先，其次 PATH，再试常见安装位置。
 pub fn find_claude_binary() -> Option<PathBuf> {
+    // 显式指定就照用（哪怕文件暂缺——spawn 的报错比静默回退更直观）
+    if let Some(p) = override_path().lock().unwrap().clone() {
+        return Some(p);
+    }
     if let Some(p) = from_lookup_tool() {
         return Some(p);
     }

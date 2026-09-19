@@ -5,8 +5,9 @@ import Sidebar from "./components/Sidebar";
 import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
+import SettingsPanel from "./components/SettingsPanel";
 import { invoke, isTauri } from "./api";
-import type { PtyStatus, SearchHit, SessionMeta } from "./types";
+import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
 // 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
 const MOCK_SESSIONS: SessionMeta[] = [
@@ -22,9 +23,6 @@ const MOCK_SESSIONS: SessionMeta[] = [
     sourceFile: "C:\\Users\\yinjie\\.claude\\projects\\mock.jsonl",
   },
 ];
-
-// 输出静默超过该时长视为空闲（近似值：静默执行长任务会误判，见 roadmap）
-const BUSY_MS = 4000;
 
 interface PtyEvent {
   id: string;
@@ -44,6 +42,8 @@ export default function App() {
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
   const [ptyViewId, setPtyViewId] = useState<string | null>(null);
 
@@ -69,6 +69,9 @@ export default function App() {
   useEffect(() => {
     if (!isTauri) return;
     refreshSessions();
+    invoke<AppSettings>("get_settings")
+      .then(setSettings)
+      .catch((e) => console.error("get_settings failed:", e));
     const t = setInterval(refreshSessions, 15000);
     return () => clearInterval(t);
   }, [refreshSessions]);
@@ -128,6 +131,10 @@ export default function App() {
     ? activePtys.some((p) => p.id === ptyViewId)
     : false;
 
+  // 忙闲阈值可由设置页调整；走 ref 让 memo 免于依赖链，2s tick 内生效
+  const busyMsRef = useRef(4000);
+  busyMsRef.current = settings?.busyMs ?? 4000;
+
   const busyIds = useMemo(
     () =>
       new Set(
@@ -135,7 +142,7 @@ export default function App() {
           .filter((p) => {
             // ?? 0 兜底：字段缺失时不让 NaN 污染比较（宁可显示忙也别永远空闲）
             const last = Math.max(p.lastOutputMs ?? 0, activityRef.current[p.id] ?? 0);
-            return Date.now() - last < BUSY_MS;
+            return Date.now() - last < busyMsRef.current;
           })
           .map((p) => p.id),
       ),
@@ -209,6 +216,13 @@ export default function App() {
         <button className="new-btn" onClick={() => setPanelOpen(true)}>
           ➕ 新会话
         </button>
+        <button
+          className="new-btn"
+          title="设置"
+          onClick={() => setSettingsOpen(true)}
+        >
+          ⚙
+        </button>
       </header>
 
       <div className="main">
@@ -275,6 +289,14 @@ export default function App() {
 
       {panelOpen && (
         <NewSessionPanel onPick={startNewSession} onClose={() => setPanelOpen(false)} />
+      )}
+
+      {settingsOpen && settings && (
+        <SettingsPanel
+          settings={settings}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={setSettings}
+        />
       )}
 
       <footer className="statusbar" data-tick={tick}>

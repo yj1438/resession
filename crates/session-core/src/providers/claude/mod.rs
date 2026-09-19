@@ -2,7 +2,7 @@
 //!
 //! 格式笔记见 docs/data-formats.md（实测观测，非官方文档）。
 
-mod binary;
+pub(crate) mod binary;
 mod parse;
 
 use std::path::{Path, PathBuf};

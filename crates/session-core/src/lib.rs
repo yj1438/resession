@@ -15,3 +15,8 @@ pub use provider::{ResumeSpec, ScanError, SearchHit, SessionProvider};
 pub fn registry() -> Vec<Box<dyn SessionProvider>> {
     vec![Box::new(providers::claude::ClaudeProvider)]
 }
+
+/// 应用级 claude 二进制路径覆盖（设置页写入；None = 恢复自动探测）
+pub fn set_claude_binary_override(path: Option<String>) {
+    providers::claude::binary::set_override(path);
+}

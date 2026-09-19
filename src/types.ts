@@ -39,3 +39,9 @@ export interface SearchHit {
   sidechain: boolean;
   snippet: string;
 }
+
+export interface AppSettings {
+  aliases: Record<string, string>;
+  claudePath: string | null;
+  busyMs: number;
+}

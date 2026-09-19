@@ -1,8 +1,8 @@
-//! ReSession 自有配置（别名、未来的设置项）。
+//! ReSession 自有配置（别名、claude 路径覆盖、忙闲阈值等）。
 //!
 //! 原则（design.md）：原生会话数据只读；用户在 ReSession 里的显式操作
-//! （改名、备注）写自己的配置文件 `~/.resession/settings.json`，
-//! 键带 provider 前缀（`claude:<uuid>`）为未来多 agent 预留。
+//! （改名、备注、设置）写自己的配置文件 `~/.resession/settings.json`，
+//! 别名键带 provider 前缀（`claude:<uuid>`）为未来多 agent 预留。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -10,10 +10,21 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+fn default_busy_ms() -> u64 {
+    4000
+}
+
 #[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", default)] // DTO 跨端：camelCase 勿漏
 pub struct Settings {
     #[serde(default)]
     pub aliases: HashMap<String, String>,
+    /// claude 可执行路径覆盖（None = 自动探测）
+    #[serde(default)]
+    pub claude_path: Option<String>,
+    /// 忙闲判定阈值毫秒（输出静默超过视为空闲）
+    #[serde(default = "default_busy_ms")]
+    pub busy_ms: u64,
 }
 
 impl Settings {
