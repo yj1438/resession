@@ -8,7 +8,7 @@
 | 组件 | 用途 | 备注 |
 |---|---|---|
 | Node.js ≥ 20 + npm | 前端构建、tauri CLI | — |
-| Rust `x86_64-pc-windows-msvc` 工具链 | Rust 侧编译 | 标准 rustup 安装即可；仓库根 `rust-toolchain.toml` 固定 msvc host |
+| Rust 工具链（Windows 用 `stable-x86_64-pc-windows-msvc`） | Rust 侧编译 | Windows 标准 rustup 安装的默认 host 即 msvc；macOS/Linux 用各自默认 host 即可 |
 | VS Build Tools（VC.Tools.x86.x64 + Windows11SDK.22621） | 提供 `link.exe` 与 Windows SDK 库 | **仅编译期需要**，运行产物不依赖它；rustc 自动探测，无需 vcvars |
 | WebView2 Runtime | 运行期渲染 | Windows 11 系统自带 |
 
