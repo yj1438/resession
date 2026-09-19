@@ -33,7 +33,7 @@ interface PtyEvent {
 
 export default function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
-  const [usingMock, setUsingMock] = useState(!isTauri);
+  const [usingMock] = useState(!isTauri);
   const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -49,15 +49,23 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
+  const refreshSessions = useCallback(() => {
     if (!isTauri) return;
     invoke<SessionMeta[]>("scan_sessions")
       .then(setSessions)
       .catch((e) => {
         console.error("scan_sessions failed:", e);
-        setUsingMock(true);
       });
   }, []);
+
+  // 列表不是静态的：新会话（含外部终端开的）要陆续进来。
+  // mtime 缓存让重扫很便宜，15s 一个周期足够"新鲜"。
+  useEffect(() => {
+    if (!isTauri) return;
+    refreshSessions();
+    const t = setInterval(refreshSessions, 15000);
+    return () => clearInterval(t);
+  }, [refreshSessions]);
 
   const refreshPtys = useCallback(() => {
     if (!isTauri) return;
@@ -129,6 +137,8 @@ export default function App() {
         setPtyViewId(id);
         setPanelOpen(false);
         refreshPtys();
+        // claude 写 jsonl 有几秒延迟，先补一枪，余下的交给 15s 周期
+        setTimeout(refreshSessions, 4000);
       })
       .catch((e) => console.error("new_session failed:", e));
   };
