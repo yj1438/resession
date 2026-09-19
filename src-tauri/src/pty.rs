@@ -220,3 +220,24 @@ pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 契约：PtyStatus 必须 camelCase（曾因漏 rename 导致忙闲检测全挂）
+    #[test]
+    fn pty_status_keys_are_camel_case() {
+        let s = PtyStatus {
+            id: "x".into(),
+            last_output_ms: 7,
+            cwd: "C:\\".into(),
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["lastOutputMs"], 7);
+        assert!(v.get("last_output_ms").is_none());
+        for k in v.as_object().unwrap().keys() {
+            assert!(!k.contains('_'), "DTO key `{k}` 含蛇形命名");
+        }
+    }
+}

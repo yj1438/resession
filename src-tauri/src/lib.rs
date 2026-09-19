@@ -281,6 +281,26 @@ fn new_session(
     Ok(id)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::KnownProject;
+
+    /// 契约：KnownProject 必须 camelCase
+    #[test]
+    fn known_project_keys_are_camel_case() {
+        let k = KnownProject {
+            path: "C:\\x".into(),
+            last_active: Some("2026-09-19T00:00:00Z".into()),
+        };
+        let v = serde_json::to_value(&k).unwrap();
+        assert!(v.get("lastActive").is_some());
+        assert!(v.get("last_active").is_none());
+        for key in v.as_object().unwrap().keys() {
+            assert!(!key.contains('_'), "DTO key `{key}` 含蛇形命名");
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let loaded = Settings::load();

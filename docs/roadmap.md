@@ -40,7 +40,8 @@
 - [x] 设置页 v1：claude 路径覆盖、忙闲阈值、别名管理（主题后续）
 - [ ] 系统终端兜底：在 Windows Terminal 里打开同一 resume 命令
 - [ ] 正式安装包：nsis + 图标 + 静态 CRT
-- [ ] DTO 序列化对照测试（camelCase 坑已两次，系统性防复发）
+- [x] DTO 序列化契约测试：session-core 集成测试 + src-tauri 各 DTO 单测
+      （key 列表断言 + 递归蛇形命名检查；注意 serde_json::Value 的 key 是字母序，断言排序后比较）
 
 ### M1.x 已提前消化（2026-09-19）
 

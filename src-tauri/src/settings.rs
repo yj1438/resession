@@ -58,3 +58,26 @@ impl Settings {
 }
 
 pub struct SettingsState(pub Mutex<Settings>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 契约：Settings 必须 camelCase；空对象反序列化吃到 serde 默认值。
+    /// key 顺序不是契约（serde_json::Value 内部按字母序），断言一律排序后比较。
+    #[test]
+    fn settings_keys_camel_case_and_defaults() {
+        let v = serde_json::to_value(&Settings::default()).unwrap();
+        let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        assert_eq!(keys, ["aliases", "busyMs", "claudePath"]);
+        for k in &keys {
+            assert!(!k.contains('_'), "DTO key `{k}` 含蛇形命名");
+        }
+
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.busy_ms, 4000); // default_busy_ms 生效
+        assert_eq!(s.claude_path, None);
+        assert!(s.aliases.is_empty());
+    }
+}
