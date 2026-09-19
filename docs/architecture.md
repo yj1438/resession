@@ -68,6 +68,20 @@ pub struct ResumeSpec {
 ```
 - 前端对 IR 渲染；未知 block 类型降级为原始 JSON 折叠块
 
+### 3.2b 全文搜索（M2 v1）
+
+```
+顶栏搜索框（防抖 300ms）→ invoke search_sessions(query)
+  → provider.search()：遍历会话文件 → 可搜索文本缓存（mtime+size 键，同扫描缓存模式）
+  → 大小写不敏感匹配（ASCII 折叠 + CJK 子串）→ 片段（命中前后 60 字符）
+  → 按会话最近活跃排序、截断 50、套用别名 → 结果替换左侧列表
+```
+
+- **范围（设计确认）**：只搜 user/assistant 的 Text 块；工具输入输出不搜（噪音/体积）
+- **点击命中**：打开该会话转录，纯文本块内命中词 `<mark>` 高亮；
+  markdown 块内不高亮（v1 限制）；滚动定位为 v2（需 IR 事件锚点，`event_index` 已预留）
+- **无索引**：内容缓存即索引；会话量上千再考虑 tantivy/SQLite
+
 ### 3.3 恢复（终端）
 ```
 用户点"终端"标签 → invoke resume
