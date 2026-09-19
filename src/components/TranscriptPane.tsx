@@ -3,11 +3,21 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
+import Highlight from "./Highlight";
 import { invoke, isTauri } from "../api";
 import type { Block, Event, SessionMeta } from "../types";
 
-// 助手的 text 块按 markdown 渲染；用户消息保持纯文本
-function BlockView({ block, markdown }: { block: Block; markdown: boolean }) {
+// 助手的 text 块按 markdown 渲染；用户消息保持纯文本。
+// v1 已知限制：markdown 块内不做命中高亮（会破坏解析），纯文本块高亮
+function BlockView({
+  block,
+  markdown,
+  highlight,
+}: {
+  block: Block;
+  markdown: boolean;
+  highlight?: string;
+}) {
   switch (block.kind) {
     case "text":
       return markdown ? (
@@ -20,7 +30,9 @@ function BlockView({ block, markdown }: { block: Block; markdown: boolean }) {
           </ReactMarkdown>
         </div>
       ) : (
-        <div className="evt-text">{block.text}</div>
+        <div className="evt-text">
+          <Highlight text={block.text} query={highlight} />
+        </div>
       );
     case "toolUse":
       return (
@@ -41,7 +53,15 @@ function BlockView({ block, markdown }: { block: Block; markdown: boolean }) {
   }
 }
 
-function EventView({ event, dim }: { event: Event; dim?: boolean }) {
+function EventView({
+  event,
+  dim,
+  highlight,
+}: {
+  event: Event;
+  dim?: boolean;
+  highlight?: string;
+}) {
   return (
     <div className={dim ? "evt sidechain-evt" : "evt"}>
       <span className={`evt-role role-${event.role}`}>
@@ -49,7 +69,12 @@ function EventView({ event, dim }: { event: Event; dim?: boolean }) {
       </span>
       <div className="evt-blocks">
         {event.blocks.map((b, j) => (
-          <BlockView key={j} block={b} markdown={event.role === "assistant"} />
+          <BlockView
+            key={j}
+            block={b}
+            markdown={event.role === "assistant"}
+            highlight={highlight}
+          />
         ))}
       </div>
     </div>
@@ -57,14 +82,20 @@ function EventView({ event, dim }: { event: Event; dim?: boolean }) {
 }
 
 // 连续的 sidechain 事件折叠为一个可展开块
-function SidechainRun({ events }: { events: Event[] }) {
+function SidechainRun({
+  events,
+  highlight,
+}: {
+  events: Event[];
+  highlight?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="sidechain">
       <button className="sidechain-toggle" onClick={() => setOpen(!open)}>
         🤖 子 agent 执行了 {events.length} 条消息 {open ? "▲" : "▼"}
       </button>
-      {open && events.map((e, i) => <EventView key={i} event={e} dim />)}
+      {open && events.map((e, i) => <EventView key={i} event={e} dim highlight={highlight} />)}
     </div>
   );
 }
@@ -93,7 +124,13 @@ function groupEvents(events: Event[]): Item[] {
   return items;
 }
 
-export default function TranscriptPane({ session }: { session: SessionMeta }) {
+export default function TranscriptPane({
+  session,
+  highlight,
+}: {
+  session: SessionMeta;
+  highlight?: string;
+}) {
   const [events, setEvents] = useState<Event[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,9 +168,9 @@ export default function TranscriptPane({ session }: { session: SessionMeta }) {
     <div className="transcript">
       {items.map((item, i) =>
         item.kind === "event" ? (
-          <EventView key={i} event={item.event} />
+          <EventView key={i} event={item.event} highlight={highlight} />
         ) : (
-          <SidechainRun key={i} events={item.events} />
+          <SidechainRun key={i} events={item.events} highlight={highlight} />
         ),
       )}
     </div>

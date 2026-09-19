@@ -9,7 +9,7 @@ pub mod provider;
 pub mod providers;
 
 pub use ir::{Block, Event, Role, SessionMeta};
-pub use provider::{ResumeSpec, ScanError, SessionProvider};
+pub use provider::{ResumeSpec, ScanError, SearchHit, SessionProvider};
 
 /// 返回全部已启用的 provider。新增 agent 时在这里注册一行。
 pub fn registry() -> Vec<Box<dyn SessionProvider>> {

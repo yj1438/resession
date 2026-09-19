@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::ir::{Block, Event, Role, SessionMeta};
+use crate::provider::SearchHit;
 
 /// 需要的行字段都是 Option：格式演化时新字段/缺字段都不炸。
 #[derive(Deserialize)]
@@ -228,6 +229,120 @@ pub fn load_events(path: &Path) -> std::io::Result<Vec<Event>> {
     Ok(events)
 }
 
+/// 可搜索文本的一行（一个含文本块的事件）
+#[derive(Clone)]
+struct CachedLine {
+    event_index: usize,
+    role: Role,
+    sidechain: bool,
+    text: String,
+}
+
+struct CachedText {
+    mtime: SystemTime,
+    len: u64,
+    lines: Vec<CachedLine>,
+}
+
+fn text_cache() -> &'static Mutex<HashMap<PathBuf, CachedText>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedText>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 提取可搜索文本：仅 user/assistant 的 Text 块（设计确认：工具块不搜）。
+/// event_index 是在完整事件流（含工具事件）中的下标，v2 定位用。
+fn load_searchable(path: &Path) -> std::io::Result<Vec<CachedLine>> {
+    Ok(load_events(path)?
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, e)| {
+            let text: Vec<String> = e
+                .blocks
+                .into_iter()
+                .filter_map(|b| match b {
+                    Block::Text { text } => Some(text),
+                    _ => None,
+                })
+                .collect();
+            if text.is_empty() {
+                None
+            } else {
+                Some(CachedLine {
+                    event_index: i,
+                    role: e.role,
+                    sidechain: e.sidechain,
+                    text: text.join("\n"),
+                })
+            }
+        })
+        .collect())
+}
+
+const SNIPPET_CHARS: usize = 60;
+
+/// 在单个会话的可搜索文本中查找 query（大小写不敏感），每条消息最多一命中。
+/// 匹配基于 to_lowercase：主流内容字符一一对应；极少数特殊 Unicode（如 İ）
+/// 的字符数可能漂移，片段截取按字符边界做了保护，最坏情况偏移一位。
+pub fn search_file(meta: &SessionMeta, query: &str) -> Vec<SearchHit> {
+    let Ok(md) = std::fs::metadata(&meta.source_file) else {
+        return vec![];
+    };
+    let Ok(mtime) = md.modified() else {
+        return vec![];
+    };
+    let len = md.len();
+    let lines = {
+        let mut cache = text_cache().lock().unwrap();
+        match cache.get(&meta.source_file) {
+            Some(c) if c.mtime == mtime && c.len == len => c.lines.clone(),
+            _ => {
+                let lines = load_searchable(&meta.source_file).unwrap_or_default();
+                cache.insert(
+                    meta.source_file.clone(),
+                    CachedText {
+                        mtime,
+                        len,
+                        lines: lines.clone(),
+                    },
+                );
+                lines
+            }
+        }
+    };
+
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return vec![];
+    }
+    let mut hits = Vec::new();
+    for line in lines {
+        let lower = line.text.to_lowercase();
+        let Some(pos) = lower.find(&q) else {
+            continue;
+        };
+        let start = lower[..pos].chars().count();
+        let chars: Vec<char> = line.text.chars().collect();
+        let s = start.saturating_sub(SNIPPET_CHARS);
+        let e = (start + q.chars().count() + SNIPPET_CHARS).min(chars.len());
+        let mut snippet = String::new();
+        if s > 0 {
+            snippet.push('…');
+        }
+        snippet.extend(&chars[s..e]);
+        if e < chars.len() {
+            snippet.push('…');
+        }
+        hits.push(SearchHit {
+            session: meta.clone(),
+            event_index: line.event_index,
+            role: line.role,
+            sidechain: line.sidechain,
+            snippet,
+        });
+    }
+    hits
+}
+
 fn format_secs(secs: u64) -> String {
     // 简化 ISO 秒（精度足够排序与展示），避免引入 chrono
     let days = secs / 86_400;
@@ -363,6 +478,32 @@ mod tests {
         assert_eq!(events.len(), 2);
         assert!(events[0].sidechain);
         assert!(!events[1].sidechain);
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn search_finds_text_and_skips_tool_blocks() {
+        let dir = std::env::temp_dir().join("resession-test-search");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("f00d0000-0000-0000-0000-000000000000.jsonl");
+        std::fs::write(
+            &file,
+            concat!(
+                "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"How do I fix the login flow?\"},",
+                "\"timestamp\":\"2026-09-08T10:00:00Z\"}\n",
+                "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{}}]}}\n",
+                "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The LOGIN issue is in auth.rs\"}]}}\n"
+            ),
+        )
+        .unwrap();
+
+        let meta = scan_session_file(&file, "p").unwrap();
+        let hits = search_file(&meta, "login");
+        assert_eq!(hits.len(), 2); // user 文本 + assistant 文本；工具块不进索引
+        assert_eq!(hits[0].role, Role::User);
+        assert!(hits[0].snippet.to_lowercase().contains("login"));
+        assert_eq!(hits[1].event_index, 2); // 工具事件占了下标 1
 
         std::fs::remove_file(&file).unwrap();
     }

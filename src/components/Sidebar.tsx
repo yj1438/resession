@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { PtyStatus, SessionMeta } from "../types";
+import Highlight from "./Highlight";
+import type { PtyStatus, SearchHit, SessionMeta } from "../types";
 
 interface Props {
   sessions: SessionMeta[];
@@ -7,8 +8,11 @@ interface Props {
   activeIds: string[];
   busyIds: Set<string>;
   runningPtys: PtyStatus[];
+  hits: SearchHit[] | null;
+  highlight: string;
   onSelect: (id: string) => void;
   onViewPty: (ptyId: string) => void;
+  onOpenHit: (hit: SearchHit) => void;
   onRename: (session: SessionMeta, name: string) => void;
 }
 
@@ -28,8 +32,11 @@ export default function Sidebar({
   activeIds,
   busyIds,
   runningPtys,
+  hits,
+  highlight,
   onSelect,
   onViewPty,
+  onOpenHit,
   onRename,
 }: Props) {
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(
@@ -61,7 +68,30 @@ export default function Sidebar({
           })}
         </div>
       )}
-      <ul>
+      {hits ? (
+        <ul className="hits">
+          {hits.map((h) => (
+            <li
+              key={`${h.session.id}:${h.eventIndex}`}
+              className="session hit"
+              onClick={() => onOpenHit(h)}
+            >
+              <div className="row">
+                <span className={`hit-role role-${h.role}`}>
+                  {h.role === "user" ? "你" : h.role === "assistant" ? "Claude" : "系统"}
+                </span>
+                <span className="project">{h.session.title ?? "(无标题)"}</span>
+                {h.sidechain && <span title="子 agent 消息">🤖</span>}
+              </div>
+              <div className="hit-snippet">
+                <Highlight text={h.snippet} query={highlight} />
+              </div>
+            </li>
+          ))}
+          {hits.length === 0 && <li className="hint empty-hits">无命中</li>}
+        </ul>
+      ) : (
+        <ul>
         {sessions.map((s) => {
           const running = activeIds.includes(s.id);
           const busy = busyIds.has(s.id);
@@ -133,6 +163,7 @@ export default function Sidebar({
           );
         })}
       </ul>
+      )}
     </aside>
   );
 }

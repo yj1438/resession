@@ -6,7 +6,7 @@ import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
 import { invoke, isTauri } from "./api";
-import type { PtyStatus, SessionMeta } from "./types";
+import type { PtyStatus, SearchHit, SessionMeta } from "./types";
 
 // 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
 const MOCK_SESSIONS: SessionMeta[] = [
@@ -41,6 +41,7 @@ export default function App() {
   const [usingMock] = useState(!isTauri);
   const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
@@ -93,6 +94,22 @@ export default function App() {
       unOut?.();
     };
   }, [refreshPtys]);
+
+  // 全文搜索：防抖 300ms，query 非空即进入结果模式（清空恢复列表）
+  useEffect(() => {
+    if (!isTauri) return;
+    const q = query.trim();
+    if (!q) {
+      setHits(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      invoke<SearchHit[]>("search_sessions", { query: q })
+        .then(setHits)
+        .catch(() => setHits(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -185,7 +202,7 @@ export default function App() {
         <span className="logo">ReSession</span>
         <input
           className="search"
-          placeholder="搜索项目 / 摘要…（Ctrl+K）"
+          placeholder="搜索会话 / 全文内容…（Ctrl+K）"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -201,6 +218,8 @@ export default function App() {
           activeIds={activeIds}
           busyIds={busyIds}
           runningPtys={activePtys}
+          hits={hits}
+          highlight={query.trim()}
           onSelect={(id) => {
             setSelectedId(id);
             setPtyViewId(null);
@@ -209,6 +228,7 @@ export default function App() {
             setSelectedId(null);
             setPtyViewId(id);
           }}
+          onOpenHit={(h) => setSelectedId(h.session.id)}
           onRename={handleRename}
         />
 
@@ -238,7 +258,11 @@ export default function App() {
                   ▶ 恢复会话
                 </button>
               </div>
-              <TranscriptPane key={selected.id} session={selected} />
+              <TranscriptPane
+                key={selected.id}
+                session={selected}
+                highlight={hits ? query.trim() : undefined}
+              />
             </>
           ) : (
             <div className="empty">

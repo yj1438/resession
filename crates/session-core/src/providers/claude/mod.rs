@@ -8,7 +8,7 @@ mod parse;
 use std::path::{Path, PathBuf};
 
 use crate::ir::{Event, SessionMeta};
-use crate::provider::{ResumeSpec, ScanError, SessionProvider};
+use crate::provider::{ResumeSpec, ScanError, SearchHit, SessionProvider};
 
 pub struct ClaudeProvider;
 
@@ -74,6 +74,36 @@ impl SessionProvider for ClaudeProvider {
 
     fn new_session_command(&self, cwd: PathBuf) -> Result<ResumeSpec, ScanError> {
         binary::build_new_session_spec(cwd)
+    }
+
+    fn search(&self, query: &str) -> Result<Vec<SearchHit>, ScanError> {
+        let root = Self::sessions_root()?;
+        let mut hits = Vec::new();
+        for entry in std::fs::read_dir(&root)?.flatten() {
+            let project_dir = entry.path();
+            if !project_dir.is_dir() {
+                continue;
+            }
+            let project_name = project_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            let Ok(files) = std::fs::read_dir(&project_dir) else {
+                continue;
+            };
+            for file in files.flatten() {
+                let path = file.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                    continue;
+                }
+                let Ok(meta) = parse::scan_session_file(&path, &project_name) else {
+                    continue;
+                };
+                hits.extend(parse::search_file(&meta, query));
+            }
+        }
+        Ok(hits)
     }
 }
 

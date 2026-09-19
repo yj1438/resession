@@ -578,3 +578,29 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 全文搜索命中 */
+mark {
+  background: #e3b341;
+  color: #0d1117;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.hit-role {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.hit-snippet {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.empty-hits {
+  padding: 16px 12px;
+  cursor: default;
+}

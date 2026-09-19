@@ -31,3 +31,11 @@ export interface PtyStatus {
   lastOutputMs: number;
   cwd: string;
 }
+
+export interface SearchHit {
+  session: SessionMeta;
+  eventIndex: number;
+  role: Role;
+  sidechain: boolean;
+  snippet: string;
+}

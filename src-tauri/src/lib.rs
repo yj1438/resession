@@ -4,7 +4,7 @@ mod settings;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use session_core::{registry, Event, SessionMeta, SessionProvider};
+use session_core::{registry, Event, SearchHit, SessionMeta, SessionProvider};
 use tauri::{AppHandle, State};
 
 use pty::PtyMap;
@@ -63,6 +63,42 @@ fn rename_session(
         s.aliases.insert(key, name.to_string());
     }
     s.save()
+}
+
+/// 全文搜索对话正文（v1 设计见 architecture.md 3.2b）。
+/// 结果按会话最近活跃排序，截断 50 条；标题套用别名。
+#[tauri::command]
+fn search_sessions(
+    query: String,
+    settings: State<SettingsState>,
+) -> Result<Vec<SearchHit>, String> {
+    let q = query.trim().to_string();
+    if q.is_empty() {
+        return Ok(vec![]);
+    }
+    let aliases = settings.0.lock().unwrap().aliases.clone();
+    let mut hits = Vec::new();
+    for p in registry() {
+        match p.search(&q) {
+            Ok(mut h) => hits.append(&mut h),
+            Err(e) => eprintln!("[{}] search failed: {e}", p.name()),
+        }
+    }
+    for h in &mut hits {
+        let key = format!("{}:{}", h.session.provider, h.session.id);
+        if let Some(alias) = aliases.get(&key) {
+            h.session.title = Some(alias.clone());
+        }
+    }
+    hits.sort_by(|a, b| {
+        b.session
+            .modified_at
+            .cmp(&a.session.modified_at)
+            .then(a.session.id.cmp(&b.session.id))
+            .then(a.event_index.cmp(&b.event_index))
+    });
+    hits.truncate(50);
+    Ok(hits)
 }
 
 /// 为会话打开原生 PTY 并运行 provider 给出的 resume 命令，返回 PTY 会话 id。
@@ -177,6 +213,7 @@ pub fn run() {
             scan_sessions,
             load_transcript,
             rename_session,
+            search_sessions,
             resume_session,
             new_session,
             known_projects,

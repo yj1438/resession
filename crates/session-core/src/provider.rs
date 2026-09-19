@@ -5,7 +5,9 @@
 
 use std::path::PathBuf;
 
-use crate::ir::{Event, SessionMeta};
+use serde::Serialize;
+
+use crate::ir::{Event, Role, SessionMeta};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ScanError {
@@ -29,6 +31,22 @@ pub trait SessionProvider: Send + Sync {
 
     /// 构造"在指定目录启动全新会话"的命令（无参数，纯 `claude`）。
     fn new_session_command(&self, cwd: PathBuf) -> Result<ResumeSpec, ScanError>;
+
+    /// 全文搜索对话正文（user/assistant 文本块，大小写不敏感；工具块不搜）。
+    fn search(&self, query: &str) -> Result<Vec<SearchHit>, ScanError>;
+}
+
+/// 一条全文搜索命中
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")] // 勿漏：DTO 跨端，同 SessionMeta/PtyStatus 的教训
+pub struct SearchHit {
+    pub session: SessionMeta,
+    /// 命中消息在转录事件流中的下标（v2 滚动定位的预留锚点）
+    pub event_index: usize,
+    pub role: Role,
+    pub sidechain: bool,
+    /// 命中词前后各 ~60 字符的片段
+    pub snippet: String,
 }
 
 /// 交给 PTY 层直接 spawn 的命令。PTY 层不解析、不修改。
