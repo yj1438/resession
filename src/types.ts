@@ -29,4 +29,5 @@ export interface Event {
 export interface PtyStatus {
   id: string;
   lastOutputMs: number;
+  cwd: string;
 }

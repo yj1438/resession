@@ -25,6 +25,7 @@ pub struct PtyHandle {
     buffer: Arc<Mutex<Vec<u8>>>,
     /// 最后一次输出的 Unix 毫秒（忙闲感知信号：有输出=活跃）
     last_output: Arc<Mutex<u64>>,
+    cwd: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -32,6 +33,8 @@ pub struct PtyHandle {
 pub struct PtyStatus {
     pub id: String,
     pub last_output_ms: u64,
+    /// 工作目录（用于"同目录存活新会话 PTY"的附着守卫）
+    pub cwd: String,
 }
 
 fn now_ms() -> u64 {
@@ -111,6 +114,7 @@ pub fn spawn(
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let last_output = Arc::new(Mutex::new(now_ms()));
+    let cwd = spec.cwd.display().to_string();
 
     map.0.lock().unwrap().insert(
         id.clone(),
@@ -120,6 +124,7 @@ pub fn spawn(
             child: child.clone(),
             buffer: Arc::clone(&buffer),
             last_output: Arc::clone(&last_output),
+            cwd,
         },
     );
 
@@ -194,7 +199,7 @@ pub fn snapshot(map: &PtyMap, id: &str) -> Result<Vec<u8>, String> {
     Ok(h.buffer.lock().unwrap().clone())
 }
 
-/// 仍存活的 PTY 状态（含最后输出时间，供忙闲感知）
+/// 仍存活的 PTY 状态（含最后输出时间/工作目录，供忙闲感知与附着守卫）
 pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
     map.0.lock()
         .unwrap()
@@ -202,6 +207,7 @@ pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
         .map(|(id, h)| PtyStatus {
             id: id.clone(),
             last_output_ms: *h.last_output.lock().unwrap(),
+            cwd: h.cwd.clone(),
         })
         .collect()
 }

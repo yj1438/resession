@@ -31,6 +31,11 @@ interface PtyEvent {
   data: number[];
 }
 
+// Windows 路径比较：忽略大小写与结尾分隔符
+function normPath(p: string): string {
+  return p.replace(/[\\/]+$/, "").toLowerCase();
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
   const [usingMock] = useState(!isTauri);
@@ -125,6 +130,20 @@ export default function App() {
 
   const resumeSession = (s: SessionMeta) => {
     if (!isTauri) return;
+    // P0 守卫：该目录已有存活的"新会话"PTY（就是同一个对话在跑），
+    // 直接附着观看，绝不能再拉起第二个 resume 进程踩同一个转录
+    const liveNew = activePtys.find(
+      (p) =>
+        p.id.startsWith("new:") &&
+        !!s.cwd &&
+        !!p.cwd &&
+        normPath(p.cwd) === normPath(s.cwd),
+    );
+    if (liveNew) {
+      setSelectedId(null);
+      setPtyViewId(liveNew.id);
+      return;
+    }
     void invoke<string>("resume_session", { meta: s })
       .then(() => refreshPtys())
       .catch(() => {});
