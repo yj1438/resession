@@ -1,5 +1,7 @@
 node_modules/
 dist/
 target/
+src-tauri/gen/
+app-*.log
 *.local
 .DS_Store

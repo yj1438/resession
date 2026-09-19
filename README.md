@@ -46,8 +46,9 @@ cargo test               # 核心库测试
 （localhost:5173），必须先有 vite 开发服务器（即用 `tauri dev`），
 否则窗口报 `ERR_CONNECTION_REFUSED`。要单独跑就编 release 版。
 
-本地 Rust 工具链（隔离安装，未动全局环境）见 `F:\git-workspace\ai\tools\`，
-编译时需要设置的环境变量封装在 `tools\build-cc-sessions.cmd` 可参考。
+标准 rustup 安装即可构建。本项目开发时使用了完全隔离的本地工具链
+（`RUSTUP_HOME`/`CARGO_HOME` 指向自定义目录、不动全局环境），
+两种模式的细节见 [docs/build.md](docs/build.md)。
 
 ## 目录结构
 

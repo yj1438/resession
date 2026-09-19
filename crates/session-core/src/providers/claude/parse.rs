@@ -422,7 +422,7 @@ mod tests {
             concat!(
                 "{\"type\":\"queue-operation\",\"operation\":\"enqueue\",\"timestamp\":\"2026-09-08T16:45:16.433Z\"}\n",
                 "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"帮我修一下登录\"},",
-                "\"timestamp\":\"2026-09-08T16:45:16.522Z\",\"cwd\":\"F:\\\\git-workspace\\\\ai\",\"isSidechain\":false}\n",
+                "\"timestamp\":\"2026-09-08T16:45:16.522Z\",\"cwd\":\"D:\\\\code\\\\my-app\",\"isSidechain\":false}\n",
                 "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好的\"}]},",
                 "\"timestamp\":\"2026-09-08T16:46:00.000Z\"}\n",
                 "{\"type\":\"summary\",\"summary\":\"修复登录流程\"}\n",
@@ -431,9 +431,9 @@ mod tests {
         )
         .unwrap();
 
-        let meta = scan_session_file(&file, "F--git-workspace-ai").unwrap();
+        let meta = scan_session_file(&file, "D--code-my-app").unwrap();
         assert_eq!(meta.id, "deadbeef-0000-0000-0000-000000000000");
-        assert_eq!(meta.cwd.as_deref(), Some("F:\\git-workspace\\ai"));
+        assert_eq!(meta.cwd.as_deref(), Some("D:\\code\\my-app"));
         // title 兜底链：summary > 首条用户消息
         assert_eq!(meta.title.as_deref(), Some("修复登录流程"));
         assert_eq!(meta.message_count, 2);

@@ -9,15 +9,15 @@
 
 ```
 ~/.claude/projects/
-├── F--git-workspace-ai/                          ← 项目目录（路径编码）
+├── D--code-my-app/                               ← 项目目录（路径编码）
 │   ├── 06c76be5-72c8-4040-ae49-4864098993ed.jsonl  ← 一个会话 = 一个文件（UUID 命名）
 │   └── ...
-├── F--git-workspace-h5-mario-game/
-└── F--git-workspace-skills/
+├── D--code-web-frontend/
+└── C--Users-me-dotfiles/
 ```
 
 - **项目目录编码规则（观测）**：绝对路径中的 `:` `\` `/` 均替换为 `-`。
-  例：`F:\git-workspace\ai` → `F--git-workspace-ai`
+  例：`D:\code\my-app` → `D--code-my-app`
 - ⚠️ 编码是有损的（不可逆）：真实 cwd 要从文件内容每行的 `cwd` 字段取，
   目录名只作展示兜底
 - 每个 `.jsonl` 是**追加写**的行流（JSON Lines），一行一个 JSON 事件
@@ -41,7 +41,7 @@
   "uuid": "09a2...",
   "parentUuid": null,              ← 消息树（fork 会分叉）
   "timestamp": "2026-09-08T16:45:16.522Z",
-  "cwd": "F:\\git-workspace\\ai",  ← 真实项目路径（权威来源）
+  "cwd": "D:\\code\\my-app",  ← 真实项目路径（权威来源）
   "sessionId": "06c76...",
   "gitBranch": "HEAD",
   "version": "2.1.237",

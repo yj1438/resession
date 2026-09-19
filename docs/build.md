@@ -8,16 +8,18 @@
 | 组件 | 用途 | 备注 |
 |---|---|---|
 | Node.js ≥ 20 + npm | 前端构建、tauri CLI | — |
-| Rust `x86_64-pc-windows-msvc` 工具链 | Rust 侧编译 | 本机隔离装在 `F:\git-workspace\ai\tools\rust`，仓库根 `rust-toolchain.toml` 自动选用 |
+| Rust `x86_64-pc-windows-msvc` 工具链 | Rust 侧编译 | 标准 rustup 安装即可；仓库根 `rust-toolchain.toml` 固定 msvc host |
 | VS Build Tools（VC.Tools.x86.x64 + Windows11SDK.22621） | 提供 `link.exe` 与 Windows SDK 库 | **仅编译期需要**，运行产物不依赖它；rustc 自动探测，无需 vcvars |
 | WebView2 Runtime | 运行期渲染 | Windows 11 系统自带 |
 
-编译环境变量（本机，工具链隔离在 tools/，未动全局 PATH）：
+编译环境变量：
 
 ```bash
-export RUSTUP_HOME='F:\git-workspace\ai\tools\rust\rustup'
-export CARGO_HOME='F:\git-workspace\ai\tools\rust\cargo'
-export PATH="/f/git-workspace/ai/tools/rust/cargo/bin:$PATH"
+# 标准 rustup 安装无需任何额外变量。
+# 若采用"隔离工具链"模式（工具链装在自定义目录、不污染全局 PATH）：
+export RUSTUP_HOME='<你的目录>\rust\rustup'
+export CARGO_HOME='<你的目录>\rust\cargo'
+export PATH="<你的目录>/rust/cargo/bin:$PATH"
 ```
 
 ## 2. 三种构建模式
@@ -76,8 +78,8 @@ debug 构建运行时加载 `devUrl`（需 vite:5173 在跑），未起 vite 即
 
 ## 6. 日常使用（自用部署）
 
-- **稳定副本**：`F:\git-workspace\ai\tools\ReSession.exe`（桌面快捷方式 `ReSession` 指向它）。
-  `target/` 会被 `cargo clean` 清掉，所以日常用这份拷贝
+- **稳定副本**：把 exe 拷到任意稳定目录（如 `%USERPROFILE%\apps\ReSession.exe`），
+  桌面快捷方式指向它。`target/` 会被 `cargo clean` 清掉，所以日常用这份拷贝
 - **更新方式**：改代码后 `npm run tauri build -- --no-bundle`，再手动把新 exe 覆盖到 tools 副本
 - **数据安全**：只读 `~/.claude/projects/`；ReSession 自身只写 `~/.resession/settings.json`（别名、
   设置），不动任何原生会话数据

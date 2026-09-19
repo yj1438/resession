@@ -14,13 +14,13 @@ const MOCK_SESSIONS: SessionMeta[] = [
   {
     provider: "claude",
     id: "06c76be5-72c8-4040-ae49-4864098993ed",
-    cwd: "F:\\git-workspace\\ai",
-    projectDir: "F--git-workspace-ai",
+    cwd: "D:\\code\\my-app",
+    projectDir: "D--code-my-app",
     title: "claude code 的会话总是关闭后忘记找回来了（mock）",
     createdAt: "2026-09-19T15:40:00Z",
     modifiedAt: "2026-09-19T16:10:00Z",
     messageCount: 42,
-    sourceFile: "C:\\Users\\yinjie\\.claude\\projects\\mock.jsonl",
+    sourceFile: "C:\\Users\\you\\.claude\\projects\\mock.jsonl",
   },
 ];
 
