@@ -19,9 +19,11 @@ jobs:
         include:
           - os: windows-latest
             artifact: ReSession-windows-x64
+            asset_name: windows-x64.exe
             bin: src-tauri/target/release/resession.exe
           - os: macos-latest
             artifact: ReSession-macos-arm64
+            asset_name: macos-arm64
             bin: src-tauri/target/release/resession
     runs-on: ${{ matrix.os }}
     steps:
@@ -54,21 +56,20 @@ jobs:
           path: ${{ matrix.bin }}
           if-no-files-found: error
 
-      # 仅 tag 触发时：按版本号重命名产物并挂到 GitHub Release
+      # 仅 tag 触发时：按版本号重命名产物并挂到 GitHub Release。
+      # 注意用矩阵确定的路径直接 cp（不要 test -f 猜测——MSYS 的 .exe 魔法
+      # 会在 Windows 上造出假 mac 文件）；暂存目录用 release/ 与 vite 的 dist/ 隔离。
       - name: Stage release assets
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
-          mkdir -p dist
-          [ -f src-tauri/target/release/resession.exe ] && \
-            cp src-tauri/target/release/resession.exe "dist/ReSession-${{ github.ref_name }}-windows-x64.exe" || true
-          [ -f src-tauri/target/release/resession ] && \
-            cp src-tauri/target/release/resession "dist/ReSession-${{ github.ref_name }}-macos-arm64" || true
-          ls -la dist/
+          mkdir -p release
+          cp "${{ matrix.bin }}" "release/ReSession-${{ github.ref_name }}-${{ matrix.asset_name }}"
+          ls -la release/
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: release/*
           generate_release_notes: true
