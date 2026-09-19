@@ -667,3 +667,18 @@ mark {
 .close-right {
   margin-left: auto;
 }
+
+.settings-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-file-row .np-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+}

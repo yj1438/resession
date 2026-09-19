@@ -28,7 +28,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    fn path() -> Option<PathBuf> {
+    pub fn path() -> Option<PathBuf> {
         let home = std::env::var("USERPROFILE")
             .or_else(|_| std::env::var("HOME"))
             .ok()?;

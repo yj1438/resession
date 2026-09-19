@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke, isTauri } from "../api";
 import type { AppSettings } from "../types";
 
@@ -16,8 +16,25 @@ export default function SettingsPanel({
   const [claudePath, setClaudePath] = useState(settings.claudePath ?? "");
   const [busyMs, setBusyMs] = useState(String(settings.busyMs));
   const [aliases, setAliases] = useState(settings.aliases);
+  const [settingsPath, setSettingsPath] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    invoke<string>("settings_path")
+      .then(setSettingsPath)
+      .catch(() => {});
+  }, []);
+
+  const revealSettingsFile = async () => {
+    if (!isTauri) return;
+    try {
+      await invoke("reveal_settings_file");
+    } catch (e) {
+      setError(String(e));
+    }
+  };
 
   const save = async () => {
     if (!isTauri) return;
@@ -96,6 +113,14 @@ export default function SettingsPanel({
               <li className="hint">暂无别名（在会话列表双击标题即可创建）</li>
             )}
           </ul>
+
+          <label className="set-label">配置文件（ReSession 的全部本地数据）</label>
+          <div className="settings-file-row">
+            <span className="mono np-path">{settingsPath || "…"}</span>
+            <button className="term-close" onClick={() => void revealSettingsFile()}>
+              打开所在位置
+            </button>
+          </div>
         </div>
         <div className="np-actions">
           <button className="np-pick" onClick={() => void save()}>

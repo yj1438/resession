@@ -97,6 +97,52 @@ fn remove_alias(settings: State<SettingsState>, key: String) -> Result<(), Strin
     s.save()
 }
 
+/// ReSession 配置文件路径（可能尚不存在——首次写入时才落盘）
+#[tauri::command]
+fn settings_path() -> Result<String, String> {
+    settings::Settings::path()
+        .map(|p| p.display().to_string())
+        .ok_or_else(|| "no home directory".into())
+}
+
+/// 在系统文件管理器中定位 settings.json（不存在则先创建空文件）
+#[tauri::command]
+fn reveal_settings_file() -> Result<String, String> {
+    let Some(p) = settings::Settings::path() else {
+        return Err("no home directory".into());
+    };
+    if !p.exists() {
+        if let Some(dir) = p.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&p, b"{}").map_err(|e| e.to_string())?;
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", p.display()))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&p)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let dir = p.parent().map(|d| d.to_path_buf()).unwrap_or_default();
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(p.display().to_string())
+}
+
 /// 全文搜索对话正文（v1 设计见 architecture.md 3.2b）。
 /// 结果按会话最近活跃排序，截断 50 条；标题套用别名。
 #[tauri::command]
@@ -251,6 +297,8 @@ pub fn run() {
             get_settings,
             save_settings,
             remove_alias,
+            settings_path,
+            reveal_settings_file,
             resume_session,
             new_session,
             known_projects,
