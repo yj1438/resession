@@ -1,0 +1,5 @@
+# Windows MSVC 构建静态链接 CRT：产物不依赖 VC++ 可再分发组件，
+# 单 exe 到哪都能跑（ReSession 的"绿色单文件"目标）。
+# 注意：必须整仓构建都走此配置（tauri CLI 与裸 cargo 一致）。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

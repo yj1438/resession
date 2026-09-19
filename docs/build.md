@@ -79,5 +79,20 @@ debug 构建运行时加载 `devUrl`（需 vite:5173 在跑），未起 vite 即
 - **稳定副本**：`F:\git-workspace\ai\tools\ReSession.exe`（桌面快捷方式 `ReSession` 指向它）。
   `target/` 会被 `cargo clean` 清掉，所以日常用这份拷贝
 - **更新方式**：改代码后 `npm run tauri build -- --no-bundle`，再手动把新 exe 覆盖到 tools 副本
-- **数据安全**：只读 `~/.claude/projects/`；ReSession 自身只写 `~/.resession/settings.json`（别名），
-  不动任何原生会话数据
+- **数据安全**：只读 `~/.claude/projects/`；ReSession 自身只写 `~/.resession/settings.json`（别名、
+  设置），不动任何原生会话数据
+
+### 6.1 绿色单文件属性（crt-static）
+
+仓库根 `.cargo/config.toml` 为 MSVC 目标启用 `target-feature=+crt-static`：
+VC++ 运行库（vcruntime140.dll）静态链入 exe，**不再依赖 VC++ 可再分发组件**。
+产物运行期仅依赖 Windows 10/11 出厂自带组件：
+
+- WebView2 Runtime（Win11 自带）
+- 系统 UCRT（api-ms-win-crt-*，OS 组件）
+
+验证方式：字节搜索 exe 中 `vcruntime140` 应为 0 命中（ASCII GetString 后
+IndexOf，grep 对二进制不可靠）。
+
+**安装包（nsis）已从路线图移除**：自用场景单 exe 即全部；nsis 的价值只在
+分发给他人（开始菜单/卸载器/WebView2 引导），需要时随时可加回。
