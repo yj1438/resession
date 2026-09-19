@@ -1,5 +1,5 @@
 # 双平台构建：测试 → tauri build（免打包）→ 产物上传
-# 触发：push main（日常验证）/ 手动 / v* 标签（发版）
+# 触发：push main（日常验证）/ 手动 / v* 标签（发版：自动创建 Release 并附产物）
 name: build
 
 on:
@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+
+permissions:
+  contents: write # 发版需要创建 Release
 
 jobs:
   build:
@@ -50,3 +53,22 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.bin }}
           if-no-files-found: error
+
+      # 仅 tag 触发时：按版本号重命名产物并挂到 GitHub Release
+      - name: Stage release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          mkdir -p dist
+          [ -f src-tauri/target/release/resession.exe ] && \
+            cp src-tauri/target/release/resession.exe "dist/ReSession-${{ github.ref_name }}-windows-x64.exe" || true
+          [ -f src-tauri/target/release/resession ] && \
+            cp src-tauri/target/release/resession "dist/ReSession-${{ github.ref_name }}-macos-arm64" || true
+          ls -la dist/
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
