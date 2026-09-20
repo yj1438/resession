@@ -138,10 +138,13 @@ export default function TranscriptPane({
     if (!isTauri) return;
     setEvents(null);
     setError(null);
+    // 仅按会话 id 加载一次：15s 重扫会替换 session 对象引用，
+    // 若依赖引用会导致阅读中反复重载并滚回顶部
     invoke<Event[]>("load_transcript", { meta: session })
       .then(setEvents)
       .catch((e) => setError(String(e)));
-  }, [session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id]);
 
   const items = useMemo(() => (events ? groupEvents(events) : []), [events]);
 
