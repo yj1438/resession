@@ -19,6 +19,9 @@ fn default_busy_ms() -> u64 {
 pub struct Settings {
     #[serde(default)]
     pub aliases: HashMap<String, String>,
+    /// 已归档会话 key 列表（`provider:<uuid>`）——原生文件保留，仅列表隐藏
+    #[serde(default)]
+    pub archived: Vec<String>,
     /// claude 可执行路径覆盖（None = 自动探测）
     #[serde(default)]
     pub claude_path: Option<String>,
@@ -70,7 +73,7 @@ mod tests {
         let v = serde_json::to_value(&Settings::default()).unwrap();
         let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
         keys.sort();
-        assert_eq!(keys, ["aliases", "busyMs", "claudePath"]);
+        assert_eq!(keys, ["aliases", "archived", "busyMs", "claudePath"]);
         for k in &keys {
             assert!(!k.contains('_'), "DTO key `{k}` 含蛇形命名");
         }
@@ -79,5 +82,6 @@ mod tests {
         assert_eq!(s.busy_ms, 4000); // default_busy_ms 生效
         assert_eq!(s.claude_path, None);
         assert!(s.aliases.is_empty());
+        assert!(s.archived.is_empty());
     }
 }

@@ -12,9 +12,15 @@ interface Props {
   highlight: string;
   width: number;
   locateRequest: { id: string; sequence: number } | null;
+  archivedIds: Set<string>;
+  showArchived: boolean;
+  archivedCount: number;
   onSelect: (id: string) => void;
   onOpenHit: (hit: SearchHit) => void;
   onRename: (session: SessionMeta, name: string) => void;
+  onArchive: (sessions: SessionMeta[], archived: boolean) => void;
+  onDelete: (sessions: SessionMeta[]) => void;
+  onToggleShowArchived: () => void;
 }
 
 interface ProjectGroup {
@@ -79,9 +85,15 @@ export default function Sidebar({
   highlight,
   width,
   locateRequest,
+  archivedIds,
+  showArchived,
+  archivedCount,
   onSelect,
   onOpenHit,
   onRename,
+  onArchive,
+  onDelete,
+  onToggleShowArchived,
 }: Props) {
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(
     null,
@@ -153,6 +165,7 @@ export default function Sidebar({
           {hits.length === 0 && <li className="hint empty-hits">无命中</li>}
         </ul>
       ) : (
+        <>
         <div className="project-tree">
           {groups.map((group) => {
             const isCollapsed = collapsed.has(group.key);
@@ -162,24 +175,44 @@ export default function Sidebar({
                 className={containsSelected ? "project-group has-selected" : "project-group"}
                 key={group.key}
               >
-                <button
-                  className="project-header"
-                  title={group.path}
-                  aria-expanded={!isCollapsed}
-                  onClick={() =>
-                    setCollapsed((previous) => {
-                      const next = new Set(previous);
-                      if (next.has(group.key)) next.delete(group.key);
-                      else next.add(group.key);
-                      return next;
-                    })
-                  }
+                <div
+                  className={containsSelected ? "project-header has-selected" : "project-header"}
                 >
-                  <span className="project-chevron">{isCollapsed ? "▸" : "▾"}</span>
-                  <span className="project-icon" aria-hidden="true" />
-                  <span className="project-name">{group.name}</span>
+                  <button
+                    className="project-header-main"
+                    title={group.path}
+                    aria-expanded={!isCollapsed}
+                    onClick={() =>
+                      setCollapsed((previous) => {
+                        const next = new Set(previous);
+                        if (next.has(group.key)) next.delete(group.key);
+                        else next.add(group.key);
+                        return next;
+                      })
+                    }
+                  >
+                    <span className="project-chevron">{isCollapsed ? "▸" : "▾"}</span>
+                    <span className="project-icon" aria-hidden="true" />
+                    <span className="project-name">{group.name}</span>
+                  </button>
+                  <span className="row-actions">
+                    <button
+                      className="row-btn"
+                      title="归档该项目全部会话"
+                      onClick={() => onArchive(group.sessions, true)}
+                    >
+                      🗄
+                    </button>
+                    <button
+                      className="row-btn"
+                      title="删除该项目全部会话（移入废纸篓）"
+                      onClick={() => onDelete(group.sessions)}
+                    >
+                      🗑
+                    </button>
+                  </span>
                   <span className="project-count">{group.sessions.length}</span>
-                </button>
+                </div>
 
                 {!isCollapsed && (
                   <ul>
@@ -187,6 +220,7 @@ export default function Sidebar({
                       const running = activeIds.includes(session.id);
                       const busy = busyIds.has(session.id);
                       const isEditing = editing?.id === session.id;
+                      const isArchived = archivedIds.has(`${session.provider}:${session.id}`);
                       return (
                         <li
                           key={session.id}
@@ -194,9 +228,12 @@ export default function Sidebar({
                             if (node) sessionNodes.current.set(session.id, node);
                             else sessionNodes.current.delete(session.id);
                           }}
-                          className={
-                            session.id === selectedId ? "session selected" : "session"
-                          }
+                          className={[
+                            session.id === selectedId ? "session selected" : "session",
+                            isArchived ? "archived" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                           onClick={() => onSelect(session.id)}
                         >
                           <div className="row session-title-row">
@@ -231,21 +268,57 @@ export default function Sidebar({
                                 >
                                   {session.title ?? "(无标题)"}
                                 </span>
-                                <button
-                                  className="rename-btn"
-                                  title="重命名"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setEditing({ id: session.id, value: session.title ?? "" });
-                                  }}
-                                >
-                                  ✎
-                                </button>
+                                <span className="row-actions">
+                                  {isArchived ? (
+                                    <button
+                                      className="row-btn"
+                                      title="恢复到列表"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onArchive([session], false);
+                                      }}
+                                    >
+                                      ♻
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="row-btn"
+                                      title="归档（列表隐藏，可恢复）"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onArchive([session], true);
+                                      }}
+                                    >
+                                      🗄
+                                    </button>
+                                  )}
+                                  <button
+                                    className="row-btn"
+                                    title="删除（移入废纸篓）"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onDelete([session]);
+                                    }}
+                                  >
+                                    🗑
+                                  </button>
+                                  <button
+                                    className="rename-btn"
+                                    title="重命名"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setEditing({ id: session.id, value: session.title ?? "" });
+                                    }}
+                                  >
+                                    ✎
+                                  </button>
+                                </span>
                               </>
                             )}
                           </div>
                           <div className="session-meta">
                             <span className="time">{relativeTime(session.modifiedAt)}</span>
+                            {isArchived && <span className="archived-tag">已归档</span>}
                             {running && (
                               <span
                                 className={busy ? "dot busy" : "dot idle"}
@@ -265,6 +338,12 @@ export default function Sidebar({
           })}
           {groups.length === 0 && <div className="hint sidebar-empty">无会话</div>}
         </div>
+        {archivedCount > 0 && (
+          <button className="archived-toggle" onClick={onToggleShowArchived}>
+            {showArchived ? "隐藏已归档" : `显示已归档（${archivedCount}）`}
+          </button>
+        )}
+        </>
       )}
     </aside>
   );

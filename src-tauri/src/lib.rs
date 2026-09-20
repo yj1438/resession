@@ -97,6 +97,52 @@ fn remove_alias(settings: State<SettingsState>, key: String) -> Result<(), Strin
     s.save()
 }
 
+/// 归档/取消归档会话（keys 形如 "claude:<uuid>"，支持批量）。
+/// 只动 ReSession 配置层：原生 JSONL 保留，列表默认隐藏。
+#[tauri::command]
+fn set_archived(
+    settings: State<SettingsState>,
+    keys: Vec<String>,
+    archived: bool,
+) -> Result<(), String> {
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let mut s = settings.0.lock().unwrap();
+    for key in &keys {
+        if archived {
+            if !s.archived.contains(key) {
+                s.archived.push(key.clone());
+            }
+        } else {
+            s.archived.retain(|k| k != key);
+        }
+    }
+    s.save()
+}
+
+/// 删除会话：JSONL 移入系统废纸篓（可恢复，与手动删除等价），并清理
+/// 别名/归档残留。守卫：该会话有存活 PTY 时拒绝——正在被写入的文件不能动。
+#[tauri::command]
+fn delete_session(
+    settings: State<SettingsState>,
+    ptys: State<PtyMap>,
+    meta: SessionMeta,
+) -> Result<(), String> {
+    if ptys.0.lock().unwrap().contains_key(&meta.id) {
+        return Err("会话正在运行，请先关闭终端再删除".into());
+    }
+    let path = PathBuf::from(&meta.source_file);
+    if path.exists() {
+        trash::delete(&path).map_err(|e| format!("移入废纸篓失败: {e}"))?;
+    }
+    let key = format!("{}:{}", meta.provider, meta.id);
+    let mut s = settings.0.lock().unwrap();
+    s.aliases.remove(&key);
+    s.archived.retain(|k| k != &key);
+    s.save()
+}
+
 /// ReSession 配置文件路径（可能尚不存在——首次写入时才落盘）
 #[tauri::command]
 fn settings_path() -> Result<String, String> {
@@ -317,6 +363,8 @@ pub fn run() {
             get_settings,
             save_settings,
             remove_alias,
+            set_archived,
+            delete_session,
             settings_path,
             reveal_settings_file,
             resume_session,

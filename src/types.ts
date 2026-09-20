@@ -46,6 +46,8 @@ export interface SearchHit {
 
 export interface AppSettings {
   aliases: Record<string, string>;
+  /** 已归档会话 key（`provider:<uuid>`）——列表默认隐藏，可恢复 */
+  archived: string[];
   claudePath: string | null;
   busyMs: number;
 }

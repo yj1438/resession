@@ -7,6 +7,7 @@ import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import { invoke, isTauri } from "./api";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
@@ -48,6 +49,11 @@ function initialSidebarWidth(): number {
   return Math.min(preferred, currentSidebarMaxWidth());
 }
 
+// 归档/别名共用的会话键（与 Rust 侧 `provider:<uuid>` 格式一致）
+function sessionKey(s: SessionMeta): string {
+  return `${s.provider}:${s.id}`;
+}
+
 export default function App() {
   const [sessions, setSessions] = useState<SessionMeta[]>(MOCK_SESSIONS);
   const [usingMock] = useState(!isTauri);
@@ -58,6 +64,9 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  // 归档集合与“显示已归档”开关（归档只藏不删，删除走 delete_session）
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => new Set());
+  const [showArchived, setShowArchived] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);
   const [sidebarMaxWidth, setSidebarMaxWidth] = useState(currentSidebarMaxWidth);
   const [locateRequest, setLocateRequest] = useState<{
@@ -133,7 +142,10 @@ export default function App() {
     if (!isTauri) return;
     refreshSessions();
     invoke<AppSettings>("get_settings")
-      .then(setSettings)
+      .then((s) => {
+        setSettings(s);
+        setArchivedIds(new Set(s.archived));
+      })
       .catch((e) => console.error("get_settings failed:", e));
     const t = setInterval(refreshSessions, 15000);
     return () => clearInterval(t);
@@ -186,12 +198,29 @@ export default function App() {
   }, [query]);
 
   const filtered = useMemo(() => {
+    const kept = showArchived
+      ? sessions
+      : sessions.filter((s) => !archivedIds.has(sessionKey(s)));
     const q = query.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter((s) =>
+    if (!q) return kept;
+    return kept.filter((s) =>
       [s.title, s.cwd, s.projectDir].some((f) => f?.toLowerCase().includes(q)),
     );
-  }, [sessions, query]);
+  }, [sessions, query, archivedIds, showArchived]);
+
+  // 搜索结果同样屏蔽已归档会话
+  const visibleHits = useMemo(
+    () =>
+      hits?.filter((h) => showArchived || !archivedIds.has(sessionKey(h.session))) ??
+      null,
+    [hits, archivedIds, showArchived],
+  );
+
+  // 侧栏底部“已归档”开关的计数（按全量会话，不随搜索过滤）
+  const archivedCount = useMemo(
+    () => sessions.reduce((n, s) => n + (archivedIds.has(sessionKey(s)) ? 1 : 0), 0),
+    [sessions, archivedIds],
+  );
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
   // 视图优先级：选中会话的终端 > 正在观看的合成终端 > 转录态 > 空
@@ -272,6 +301,52 @@ export default function App() {
         ),
       )
       .catch(() => {});
+  };
+
+  // 归档只动 ReSession 配置层；items 支持批量（项目级归档一次调用）
+  const handleArchive = (items: SessionMeta[], archived: boolean) => {
+    if (!isTauri || items.length === 0) return;
+    const keys = items.map(sessionKey);
+    invoke<void>("set_archived", { keys, archived })
+      .then(() =>
+        setArchivedIds((prev) => {
+          const next = new Set(prev);
+          for (const key of keys) {
+            if (archived) next.add(key);
+            else next.delete(key);
+          }
+          return next;
+        }),
+      )
+      .catch((e) => console.error("set_archived failed:", e));
+  };
+
+  // 删除 = 移入系统废纸篓（后端守卫：运行中的会话拒绝）；逐个调用后统一刷新
+  const handleDelete = async (items: SessionMeta[]) => {
+    if (!isTauri || items.length === 0) return;
+    const noun = items.length > 1 ? `该项目下的 ${items.length} 个会话` : "该会话";
+    const ok = await ask(`把${noun}的记录移入系统废纸篓（可从废纸篓恢复）。继续吗？`, {
+      title: "删除会话",
+      kind: "warning",
+    });
+    if (!ok) return;
+    const deletedIds: string[] = [];
+    const errors: string[] = [];
+    for (const s of items) {
+      try {
+        await invoke<void>("delete_session", { meta: s });
+        deletedIds.push(s.id);
+      } catch (e) {
+        errors.push(String(e));
+      }
+    }
+    if (errors.length > 0) {
+      window.alert(`部分会话删除失败：\n${errors.join("\n")}`);
+    }
+    if (selectedId && deletedIds.includes(selectedId)) {
+      setSelectedId(null);
+    }
+    refreshSessions();
   };
 
   const viewRunningPty = (pty: PtyStatus) => {
@@ -377,10 +452,13 @@ export default function App() {
           selectedId={selectedId}
           activeIds={activeIds}
           busyIds={busyIds}
-          hits={hits}
+          hits={visibleHits}
           highlight={query.trim()}
           width={sidebarWidth}
           locateRequest={locateRequest}
+          archivedIds={archivedIds}
+          showArchived={showArchived}
+          archivedCount={archivedCount}
           onSelect={(id) => {
             setSelectedId(id);
             setPtyViewId(null);
@@ -390,6 +468,9 @@ export default function App() {
             setPtyViewId(null);
           }}
           onRename={handleRename}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onToggleShowArchived={() => setShowArchived((v) => !v)}
         />
 
         <div
