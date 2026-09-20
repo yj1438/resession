@@ -578,6 +578,9 @@ export default function App() {
         {activePtys.filter((p) => busyIds.has(p.id)).length} 忙 /{" "}
         {activePtys.length} 跑
         {!isTauri && " · 浏览器模式"}
+        <span className="build-stamp" title="前端构建时间（判断 exe 内嵌资源是否新鲜）">
+          {" "}· build {__BUILD_DATE__}
+        </span>
       </footer>
     </div>
   );
