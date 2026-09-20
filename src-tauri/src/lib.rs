@@ -25,7 +25,7 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     for p in registry() {
         match p.scan() {
             Ok(mut s) => all.append(&mut s),
-            Err(e) => eprintln!("[{}] scan failed: {e}", p.name()),
+            Err(e) => log::warn!("[{}] scan failed: {e}", p.name()),
         }
     }
     // 别名覆盖：ReSession 别名 > 原生 /rename > summary > 首条消息
@@ -144,6 +144,7 @@ fn delete_session(
     let path = PathBuf::from(&meta.source_file);
     if path.exists() {
         trash::delete(&path).map_err(|e| format!("移入废纸篓失败: {e}"))?;
+        log::info!("session trashed: {} ({})", meta.id, path.display());
     }
     let key = format!("{}:{}", meta.provider, meta.id);
     let mut s = settings.0.lock().unwrap();
@@ -158,6 +159,45 @@ fn settings_path() -> Result<String, String> {
     settings::Settings::path()
         .map(|p| p.display().to_string())
         .ok_or_else(|| "no home directory".into())
+}
+
+/// 日志目录路径
+#[tauri::command]
+fn logs_dir() -> Result<String, String> {
+    settings::Settings::logs_dir()
+        .map(|p| p.display().to_string())
+        .ok_or_else(|| "no home directory".into())
+}
+
+/// 在系统文件管理器中打开日志目录（不存在则先创建）
+#[tauri::command]
+fn reveal_logs_dir() -> Result<String, String> {
+    let Some(dir) = settings::Settings::logs_dir() else {
+        return Err("no home directory".into());
+    };
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer")
+            .arg(dir.display().to_string())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(dir.display().to_string())
 }
 
 /// 在系统文件管理器中定位 settings.json（不存在则先创建空文件）
@@ -214,7 +254,7 @@ fn search_sessions(
     for p in registry() {
         match p.search(&q) {
             Ok(mut h) => hits.append(&mut h),
-            Err(e) => eprintln!("[{}] search failed: {e}", p.name()),
+            Err(e) => log::warn!("[{}] search failed: {e}", p.name()),
         }
     }
     for h in &mut hits {
@@ -360,8 +400,34 @@ mod tests {
 pub fn run() {
     let loaded = Settings::load();
     session_core::set_claude_binary_override(loaded.claude_path.clone());
+    let log_dir = Settings::logs_dir();
+    if let Some(dir) = &log_dir {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let mut log_targets = vec![tauri_plugin_log::Target::new(
+        tauri_plugin_log::TargetKind::Stdout,
+    )];
+    if let Some(path) = log_dir {
+        log_targets.push(tauri_plugin_log::Target::new(
+            tauri_plugin_log::TargetKind::Folder {
+                path,
+                file_name: Some("resession".into()),
+            },
+        ));
+    }
+    log_targets.push(tauri_plugin_log::Target::new(
+        tauri_plugin_log::TargetKind::Webview,
+    ));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets(log_targets)
+                .level(log::LevelFilter::Info)
+                .max_file_size(2_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .build(),
+        )
         .manage(PtyMap::default())
         .manage(SettingsState(std::sync::Mutex::new(loaded)))
         .invoke_handler(tauri::generate_handler![
@@ -376,6 +442,8 @@ pub fn run() {
             delete_session,
             settings_path,
             reveal_settings_file,
+            logs_dir,
+            reveal_logs_dir,
             resume_session,
             new_session,
             known_projects,
@@ -385,6 +453,10 @@ pub fn run() {
             pty_list,
             pty_close
         ])
+        .setup(|app| {
+            log::info!("ReSession v{} started", app.package_info().version);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

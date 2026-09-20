@@ -131,6 +131,7 @@ pub fn spawn(
     // 读线程：pty 原始字节 → 前端事件 + 回放缓冲。不解析、不修改内容。
     let app = app.clone();
     let pty_id = id.clone();
+    log::info!("pty spawned: {} -> {}", id, spec.command_line());
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
@@ -162,6 +163,7 @@ pub fn spawn(
             }
         }
         let _ = child.lock().unwrap().wait();
+        log::info!("pty exited: {}", pty_id);
         let _ = app.emit(
             "pty-exit",
             PtyEvent {

@@ -38,6 +38,14 @@ impl Settings {
         Some(PathBuf::from(home).join(".resession").join("settings.json"))
     }
 
+    /// 日志目录：`~/.resession/logs`
+    pub fn logs_dir() -> Option<PathBuf> {
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .ok()?;
+        Some(PathBuf::from(home).join(".resession").join("logs"))
+    }
+
     pub fn load() -> Settings {
         let Some(p) = Self::path() else {
             return Settings::default();

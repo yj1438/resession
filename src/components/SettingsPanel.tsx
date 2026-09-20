@@ -17,6 +17,7 @@ export default function SettingsPanel({
   const [busyMs, setBusyMs] = useState(String(settings.busyMs));
   const [aliases, setAliases] = useState(settings.aliases);
   const [settingsPath, setSettingsPath] = useState("");
+  const [logsPath, setLogsPath] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,12 +26,24 @@ export default function SettingsPanel({
     invoke<string>("settings_path")
       .then(setSettingsPath)
       .catch(() => {});
+    invoke<string>("logs_dir")
+      .then(setLogsPath)
+      .catch(() => {});
   }, []);
 
   const revealSettingsFile = async () => {
     if (!isTauri) return;
     try {
       await invoke("reveal_settings_file");
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const revealLogsDir = async () => {
+    if (!isTauri) return;
+    try {
+      await invoke("reveal_logs_dir");
     } catch (e) {
       setError(String(e));
     }
@@ -119,6 +132,14 @@ export default function SettingsPanel({
             <span className="mono np-path">{settingsPath || "…"}</span>
             <button className="term-close" onClick={() => void revealSettingsFile()}>
               打开所在位置
+            </button>
+          </div>
+
+          <label className="set-label">日志（排查问题先看这里，滚动保留）</label>
+          <div className="settings-file-row">
+            <span className="mono np-path">{logsPath || "…"}</span>
+            <button className="term-close" onClick={() => void revealLogsDir()}>
+              打开日志目录
             </button>
           </div>
         </div>

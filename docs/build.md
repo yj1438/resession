@@ -82,7 +82,14 @@ debug 构建运行时加载 `devUrl`（需 vite:5173 在跑），未起 vite 即
   桌面快捷方式指向它。`target/` 会被 `cargo clean` 清掉，所以日常用这份拷贝
 - **更新方式**：改代码后 `npm run tauri build -- --no-bundle`，再手动把新 exe 覆盖到 tools 副本
 - **数据安全**：只读 `~/.claude/projects/`；ReSession 自身只写 `~/.resession/settings.json`（别名、
-  设置），不动任何原生会话数据
+  设置）与 `~/.resession/logs/`（运行日志），不动任何原生会话数据
+
+### 6.1 日志排查
+
+运行日志在 `~/.resession/logs/resession.log`（INFO 级、2MB 滚动保留），
+记录 app 启动/版本、PTY 启动与退出、会话删除、扫描失败等关键事件；
+前端 console 也会被转发进来。设置页 ⚙ 底部有"打开日志目录"按钮。
+排查问题的顺序：设置页日志目录 → `app-err.log`（仅开发者重定向启动时才有）→ Actions 页 CI 日志。
 
 ### 6.1 绿色单文件属性（crt-static）
 
