@@ -7,6 +7,7 @@ import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import { invoke, isTauri } from "./api";
+import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
 // 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
@@ -29,9 +30,22 @@ interface PtyEvent {
   data: number[];
 }
 
-// Windows 路径比较：忽略大小写与结尾分隔符
-function normPath(p: string): string {
-  return p.replace(/[\\/]+$/, "").toLowerCase();
+const DEFAULT_SIDEBAR_WIDTH = 320;
+const MIN_SIDEBAR_WIDTH = 220;
+const SIDEBAR_WIDTH_KEY = "resession.sidebarWidth";
+
+function currentSidebarMaxWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_WIDTH;
+  return Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth * 0.55);
+}
+
+function initialSidebarWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_WIDTH;
+  const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  const preferred = Number.isFinite(saved) && saved >= MIN_SIDEBAR_WIDTH
+    ? saved
+    : DEFAULT_SIDEBAR_WIDTH;
+  return Math.min(preferred, currentSidebarMaxWidth());
 }
 
 export default function App() {
@@ -44,8 +58,57 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);
+  const [sidebarMaxWidth, setSidebarMaxWidth] = useState(currentSidebarMaxWidth);
+  const [locateRequest, setLocateRequest] = useState<{
+    id: string;
+    sequence: number;
+  } | null>(null);
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const locateSequenceRef = useRef(0);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
   const [ptyViewId, setPtyViewId] = useState<string | null>(null);
+
+  const stopSidebarResize = useCallback(() => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    document.body.classList.remove("resizing-sidebar");
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidthRef.current));
+  }, []);
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const resize = resizeRef.current;
+      if (!resize) return;
+      const maxWidth = currentSidebarMaxWidth();
+      const next = Math.min(
+        maxWidth,
+        Math.max(MIN_SIDEBAR_WIDTH, resize.startWidth + event.clientX - resize.startX),
+      );
+      sidebarWidthRef.current = next;
+      setSidebarWidth(next);
+    };
+    const clampOnWindowResize = () => {
+      const maxWidth = currentSidebarMaxWidth();
+      setSidebarMaxWidth(maxWidth);
+      if (sidebarWidthRef.current <= maxWidth) return;
+      sidebarWidthRef.current = maxWidth;
+      setSidebarWidth(maxWidth);
+      window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(maxWidth));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stopSidebarResize);
+    window.addEventListener("pointercancel", stopSidebarResize);
+    window.addEventListener("resize", clampOnWindowResize);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stopSidebarResize);
+      window.removeEventListener("pointercancel", stopSidebarResize);
+      window.removeEventListener("resize", clampOnWindowResize);
+      document.body.classList.remove("resizing-sidebar");
+    };
+  }, [stopSidebarResize]);
 
   // pty-out 高频到达：写入 ref，靠 2s tick 驱动重渲染（避免每块输出一次 setState）
   const activityRef = useRef<Record<string, number>>({});
@@ -106,12 +169,20 @@ export default function App() {
       setHits(null);
       return;
     }
+    let cancelled = false;
     const t = setTimeout(() => {
       invoke<SearchHit[]>("search_sessions", { query: q })
-        .then(setHits)
-        .catch(() => setHits(null));
+        .then((result) => {
+          if (!cancelled) setHits(result);
+        })
+        .catch(() => {
+          if (!cancelled) setHits(null);
+        });
     }, 300);
-    return () => clearTimeout(t);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [query]);
 
   const filtered = useMemo(() => {
@@ -161,7 +232,7 @@ export default function App() {
         p.id.startsWith("new:") &&
         !!s.cwd &&
         !!p.cwd &&
-        normPath(p.cwd) === normPath(s.cwd),
+        pathsEqual(p.cwd, s.cwd),
     );
     if (liveNew) {
       setSelectedId(null);
@@ -203,6 +274,40 @@ export default function App() {
       .catch(() => {});
   };
 
+  const viewRunningPty = (pty: PtyStatus) => {
+    const session = sessions.find((item) => item.id === pty.id);
+    // 从搜索结果返回项目树，才能真正展开并定位左侧会话。
+    setQuery("");
+    setHits(null);
+    if (session) {
+      setSelectedId(session.id);
+      setPtyViewId(null);
+      locateSequenceRef.current += 1;
+      setLocateRequest({ id: session.id, sequence: locateSequenceRef.current });
+    } else {
+      // new:<uuid> 在 Claude 写出真实 JSONL 前还没有可定位的会话节点。
+      setSelectedId(null);
+      setPtyViewId(pty.id);
+    }
+  };
+
+  const resetSidebarWidth = () => {
+    const next = Math.min(DEFAULT_SIDEBAR_WIDTH, sidebarMaxWidth);
+    sidebarWidthRef.current = next;
+    setSidebarWidth(next);
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
+  };
+
+  const resizeSidebarFromKeyboard = (next: number) => {
+    const clamped = Math.min(
+      sidebarMaxWidth,
+      Math.max(MIN_SIDEBAR_WIDTH, next),
+    );
+    sidebarWidthRef.current = clamped;
+    setSidebarWidth(clamped);
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clamped));
+  };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -225,25 +330,92 @@ export default function App() {
         </button>
       </header>
 
+      {activePtys.length > 0 && (
+        <nav className="running-bar" aria-label="运行中的会话">
+          <span className="running-label">运行中</span>
+          <div className="running-list">
+            {activePtys.map((pty) => {
+              const session = sessions.find((item) => item.id === pty.id);
+              const busy = busyIds.has(pty.id);
+              const label = session?.title ?? (pty.id.startsWith("new:") ? "新会话" : pty.id.slice(0, 8));
+              const project = session
+                ? pathBaseName(session.cwd || session.projectDir)
+                : pathBaseName(pty.cwd);
+              const active = session
+                ? selectedId === session.id
+                : ptyViewId === pty.id;
+              return (
+                <button
+                  key={pty.id}
+                  className={active ? "chip active" : "chip"}
+                  title={`${project} · ${label}${busy ? "（执行中）" : "（空闲）"}`}
+                  onClick={() => viewRunningPty(pty)}
+                >
+                  <span className={busy ? "dot busy" : "dot idle"}>
+                    {busy ? "●" : "○"}
+                  </span>
+                  <span className="chip-project">{project}</span>
+                  <span className="chip-label">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
       <div className="main">
         <Sidebar
           sessions={filtered}
           selectedId={selectedId}
           activeIds={activeIds}
           busyIds={busyIds}
-          runningPtys={activePtys}
           hits={hits}
           highlight={query.trim()}
+          width={sidebarWidth}
+          locateRequest={locateRequest}
           onSelect={(id) => {
             setSelectedId(id);
             setPtyViewId(null);
           }}
-          onViewPty={(id) => {
-            setSelectedId(null);
-            setPtyViewId(id);
+          onOpenHit={(h) => {
+            setSelectedId(h.session.id);
+            setPtyViewId(null);
           }}
-          onOpenHit={(h) => setSelectedId(h.session.id)}
           onRename={handleRename}
+        />
+
+        <div
+          className="sidebar-resizer"
+          role="separator"
+          aria-label="调整会话列表宽度"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={Math.round(sidebarMaxWidth)}
+          aria-valuenow={Math.round(sidebarWidth)}
+          aria-controls="session-sidebar"
+          tabIndex={0}
+          title="拖动调整宽度，双击恢复默认"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            resizeRef.current = {
+              startX: event.clientX,
+              startWidth: sidebarWidthRef.current,
+            };
+            document.body.classList.add("resizing-sidebar");
+          }}
+          onLostPointerCapture={stopSidebarResize}
+          onKeyDown={(event) => {
+            let next: number | null = null;
+            if (event.key === "ArrowLeft") next = sidebarWidth - 16;
+            else if (event.key === "ArrowRight") next = sidebarWidth + 16;
+            else if (event.key === "Home") next = MIN_SIDEBAR_WIDTH;
+            else if (event.key === "End") next = sidebarMaxWidth;
+            if (next === null) return;
+            event.preventDefault();
+            resizeSidebarFromKeyboard(next);
+          }}
+          onDoubleClick={resetSidebarWidth}
         />
 
         <section className="content">

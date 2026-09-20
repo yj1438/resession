@@ -58,8 +58,9 @@ body {
 
 .sidebar {
   width: 320px;
-  border-right: 1px solid var(--border);
+  flex-shrink: 0;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .sidebar ul {
@@ -79,7 +80,13 @@ body {
 }
 
 .session.selected {
-  background: #1c2430;
+  background: #213047;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.session.selected .title {
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .session .row {
@@ -93,6 +100,16 @@ body {
 .session .time {
   color: var(--dim);
   min-width: 32px;
+}
+
+.session-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 16px;
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 11px;
 }
 
 .session .project {
@@ -131,6 +148,101 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.sidebar-resizer {
+  position: relative;
+  width: 6px;
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border);
+  outline: none;
+  touch-action: none;
+  z-index: 2;
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0 1px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.resizing-sidebar .sidebar-resizer::after {
+  background: var(--accent);
+}
+
+body.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* 项目树 */
+.project-tree {
+  min-width: 0;
+}
+
+.project-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  background: #0f141b;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-header:hover {
+  background: #161b22;
+}
+
+.project-group.has-selected > .project-header {
+  color: #ffffff;
+}
+
+.project-chevron {
+  width: 12px;
+  flex-shrink: 0;
+  color: var(--dim);
+}
+
+.project-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.project-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #21262d;
+  color: var(--dim);
+  font-size: 11px;
+  text-align: center;
+}
+
+.project-group .session {
+  padding-left: 29px;
+}
+
+.session .row.session-title-row {
+  margin-bottom: 0;
 }
 
 .transcript {
@@ -540,19 +652,32 @@ body {
   font-family: Consolas, monospace;
 }
 
-/* 侧栏"运行中"chips */
-.chips {
+/* 顶栏下方的全宽“运行中”会话条 */
+.running-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
   align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #0b0f14;
+  flex-shrink: 0;
 }
 
-.chips-label {
+.running-label {
   color: var(--dim);
   font-size: 11px;
+  flex-shrink: 0;
+}
+
+.running-list {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 1px 0 3px;
 }
 
 .chip {
@@ -566,11 +691,33 @@ body {
   font-size: 11px;
   padding: 3px 10px;
   cursor: pointer;
-  max-width: 160px;
+  max-width: 320px;
+  flex-shrink: 0;
 }
 
 .chip:hover {
   border-color: var(--accent);
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.15);
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.22);
+}
+
+.chip-project {
+  color: var(--accent);
+  font-weight: 600;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-project::after {
+  content: "·";
+  margin-left: 5px;
+  color: var(--dim);
 }
 
 .chip-label {
@@ -603,6 +750,10 @@ mark {
 .empty-hits {
   padding: 16px 12px;
   cursor: default;
+}
+
+.sidebar-empty {
+  padding: 16px 12px;
 }
 
 /* 设置面板 */
