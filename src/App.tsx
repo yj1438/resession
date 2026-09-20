@@ -311,7 +311,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="logo">ReSession</span>
+        <span className="logo">
+          <span className="logo-mark" aria-hidden="true">R</span>
+          <span>ReSession</span>
+        </span>
         <input
           className="search"
           placeholder="搜索会话 / 全文内容…（Ctrl+K）"
@@ -322,8 +325,9 @@ export default function App() {
           ➕ 新会话
         </button>
         <button
-          className="new-btn"
+          className="icon-btn"
           title="设置"
+          aria-label="设置"
           onClick={() => setSettingsOpen(true)}
         >
           ⚙
@@ -332,7 +336,11 @@ export default function App() {
 
       {activePtys.length > 0 && (
         <nav className="running-bar" aria-label="运行中的会话">
-          <span className="running-label">运行中</span>
+          <span className="running-label">
+            <span className="running-pulse" aria-hidden="true" />
+            运行中
+            <span className="running-count">{activePtys.length}</span>
+          </span>
           <div className="running-list">
             {activePtys.map((pty) => {
               const session = sessions.find((item) => item.id === pty.id);

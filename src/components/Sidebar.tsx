@@ -176,6 +176,7 @@ export default function Sidebar({
                   }
                 >
                   <span className="project-chevron">{isCollapsed ? "▸" : "▾"}</span>
+                  <span className="project-icon" aria-hidden="true" />
                   <span className="project-name">{group.name}</span>
                   <span className="project-count">{group.sessions.length}</span>
                 </button>
@@ -222,7 +223,7 @@ export default function Sidebar({
                               <>
                                 <span
                                   className="title"
-                                  title="双击重命名（存在 ReSession 别名中，不影响原生会话）"
+                                  title={`${session.title ?? "(无标题)"}\n双击重命名（不影响原生会话）`}
                                   onDoubleClick={(event) => {
                                     event.stopPropagation();
                                     setEditing({ id: session.id, value: session.title ?? "" });
