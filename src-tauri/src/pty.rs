@@ -212,6 +212,30 @@ pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
         .collect()
 }
 
+/// 目录比较的归一化：仅 Windows 盘符路径忽略大小写与分隔符
+/// （与前端 paths.ts 的 normalizePath 语义一致）
+fn normalize_dir(p: &str) -> String {
+    let trimmed = p.trim_end_matches(['\\', '/']).replace('\\', "/");
+    let is_win = trimmed.len() >= 2 && trimmed.as_bytes()[1] == b':';
+    if is_win {
+        trimmed.to_lowercase()
+    } else {
+        trimmed
+    }
+}
+
+/// 是否存在指定目录下存活的"新会话"合成 PTY——它的 claude 正在写该目录的
+/// jsonl，此时删除/移动该会话文件属于未定义行为（删除守卫用）。
+pub fn has_live_new_at(map: &PtyMap, cwd: &str) -> bool {
+    let dir = normalize_dir(cwd);
+    if dir.is_empty() {
+        return false;
+    }
+    map.0.lock().unwrap().iter().any(|(id, h)| {
+        id.starts_with("new:") && normalize_dir(&h.cwd) == dir
+    })
+}
+
 pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
     let mut m = map.0.lock().unwrap();
     if let Some(h) = m.remove(id) {
@@ -224,6 +248,15 @@ pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_dir_matches_paths_ts_semantics() {
+        // Windows：分隔符与大小写不敏感
+        assert_eq!(normalize_dir("C:\\a\\b\\"), normalize_dir("c:/a/b"));
+        // Unix：大小写敏感
+        assert_ne!(normalize_dir("/Foo"), normalize_dir("/foo"));
+        assert_eq!(normalize_dir("/Foo/"), normalize_dir("/Foo"));
+    }
 
     /// 契约：PtyStatus 必须 camelCase（曾因漏 rename 导致忙闲检测全挂）
     #[test]

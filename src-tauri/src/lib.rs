@@ -129,8 +129,20 @@ fn delete_session(
     ptys: State<PtyMap>,
     meta: SessionMeta,
 ) -> Result<(), String> {
-    if ptys.0.lock().unwrap().contains_key(&meta.id) {
-        return Err("会话正在运行，请先关闭终端再删除".into());
+    {
+        let map = ptys.0.lock().unwrap();
+        if map.contains_key(&meta.id) {
+            return Err("会话正在运行，请先关闭终端再删除".into());
+        }
+        // "新会话"合成 PTY 的键不是会话 id，但它的 claude 正在写这个会话的
+        // jsonl（P0 守卫的同类场景）——按 cwd 匹配拦截
+        if let Some(cwd) = meta.cwd.as_deref() {
+            if pty::has_live_new_at(&ptys, cwd) {
+                return Err(
+                    "该会话正由\"新会话\"终端创建中，请先关闭那个终端再删除".into(),
+                );
+            }
+        }
     }
     let path = PathBuf::from(&meta.source_file);
     if path.exists() {

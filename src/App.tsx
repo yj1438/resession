@@ -324,6 +324,19 @@ export default function App() {
   // 删除 = 移入系统废纸篓（后端守卫：运行中的会话拒绝）；逐个调用后统一刷新
   const handleDelete = async (items: SessionMeta[]) => {
     if (!isTauri || items.length === 0) return;
+    // 提前拦截：由"新会话"终端创建中的会话（合成 PTY 键不是会话 id，
+    // 后端 contains_key 守卫查不到，这里按 cwd 匹配；后端另有兜底）
+    const creating = items.find((s) => {
+      const cwd = s.cwd;
+      if (!cwd) return false;
+      return activePtys.some(
+        (p) => p.id.startsWith("new:") && !!p.cwd && pathsEqual(p.cwd, cwd),
+      );
+    });
+    if (creating) {
+      window.alert("该会话正由\"新会话\"终端创建中，请先关闭那个终端再删除。");
+      return;
+    }
     const noun = items.length > 1 ? `该项目下的 ${items.length} 个会话` : "该会话";
     const ok = await ask(`把${noun}的记录移入系统废纸篓（可从废纸篓恢复）。继续吗？`, {
       title: "删除会话",
