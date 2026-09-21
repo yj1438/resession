@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -8,7 +8,7 @@ import { invoke, isTauri } from "../api";
 import type { Block, Event, SessionMeta } from "../types";
 
 // 助手的 text 块按 markdown 渲染；用户消息保持纯文本。
-// v1 已知限制：markdown 块内不做命中高亮（会破坏解析），纯文本块高亮
+// 已知限制：markdown 块内不做命中高亮（会破坏解析），纯文本块高亮
 function BlockView({
   block,
   markdown,
@@ -55,15 +55,20 @@ function BlockView({
 
 function EventView({
   event,
+  index,
   dim,
   highlight,
 }: {
   event: Event;
+  index?: number;
   dim?: boolean;
   highlight?: string;
 }) {
   return (
-    <div className={dim ? "evt sidechain-evt" : "evt"}>
+    <div
+      className={dim ? "evt sidechain-evt" : "evt"}
+      data-event-index={index}
+    >
       <span className={`evt-role role-${event.role}`}>
         {event.role === "user" ? "你" : event.role === "assistant" ? "Claude" : "系统"}
       </span>
@@ -81,45 +86,60 @@ function EventView({
   );
 }
 
-// 连续的 sidechain 事件折叠为一个可展开块
+// 连续的 sidechain 事件折叠为一个可展开块；搜索定位到段内时自动展开
 function SidechainRun({
   events,
   highlight,
+  locateEventIndex,
 }: {
-  events: Event[];
+  events: { index: number; event: Event }[];
   highlight?: string;
+  locateEventIndex?: number;
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (locateEventIndex !== undefined && events.some((e) => e.index === locateEventIndex)) {
+      setOpen(true);
+    }
+  }, [locateEventIndex, events]);
+
   return (
     <div className="sidechain">
       <button className="sidechain-toggle" onClick={() => setOpen(!open)}>
         🤖 子 agent 执行了 {events.length} 条消息 {open ? "▲" : "▼"}
       </button>
-      {open && events.map((e, i) => <EventView key={i} event={e} dim highlight={highlight} />)}
+      {open &&
+        events.map((e) => (
+          <EventView key={e.index} event={e.event} index={e.index} dim highlight={highlight} />
+        ))}
     </div>
   );
 }
 
-type Item = { kind: "event"; event: Event } | { kind: "sidechain"; events: Event[] };
+type Item =
+  | { kind: "event"; index: number; event: Event }
+  | { kind: "sidechain"; events: { index: number; event: Event }[] };
 
-// 把事件流按"主对话 / 连续 sidechain 段"分组
+// 把事件流按"主对话 / 连续 sidechain 段"分组；保留原始事件下标
+// （与后端 SearchHit.event_index 同一坐标系，滚动定位依赖它）
 function groupEvents(events: Event[]): Item[] {
   const items: Item[] = [];
-  let pending: Event[] = [];
+  let pending: { index: number; event: Event }[] = [];
   const flush = () => {
     if (pending.length > 0) {
       items.push({ kind: "sidechain", events: pending });
       pending = [];
     }
   };
-  for (const e of events) {
-    if (e.sidechain) {
-      pending.push(e);
+  events.forEach((event, index) => {
+    if (event.sidechain) {
+      pending.push({ index, event });
     } else {
       flush();
-      items.push({ kind: "event", event: e });
+      items.push({ kind: "event", index, event });
     }
-  }
+  });
   flush();
   return items;
 }
@@ -127,12 +147,18 @@ function groupEvents(events: Event[]): Item[] {
 export default function TranscriptPane({
   session,
   highlight,
+  locateEventIndex,
+  locateSequence = 0,
 }: {
   session: SessionMeta;
   highlight?: string;
+  locateEventIndex?: number;
+  locateSequence?: number;
 }) {
   const [events, setEvents] = useState<Event[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const retryRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -147,6 +173,35 @@ export default function TranscriptPane({
   }, [session.id]);
 
   const items = useMemo(() => (events ? groupEvents(events) : []), [events]);
+
+  // 滚动定位：等转录渲染 + sidechain 自动展开后找到目标节点，
+  // 居中滚动并闪烁标记。DOM 可能晚于 effect（展开是子组件状态变化），
+  // 用有限次重试兜底。
+  useEffect(() => {
+    if (locateEventIndex === undefined || events === null) return;
+    let attempts = 0;
+    const tryScroll = () => {
+      const node = containerRef.current?.querySelector(
+        `[data-event-index="${locateEventIndex}"]`,
+      );
+      if (node) {
+        node.scrollIntoView({ block: "center", behavior: "smooth" });
+        node.classList.add("locate-flash");
+        window.setTimeout(() => node.classList.remove("locate-flash"), 2600);
+        return;
+      }
+      if (attempts++ < 10) {
+        retryRef.current = window.setTimeout(tryScroll, 120);
+      }
+    };
+    tryScroll();
+    return () => {
+      if (retryRef.current !== null) {
+        window.clearTimeout(retryRef.current);
+        retryRef.current = null;
+      }
+    };
+  }, [locateEventIndex, locateSequence, events]);
 
   // 浏览器模式：保持元信息占位
   if (!isTauri) {
@@ -168,12 +223,22 @@ export default function TranscriptPane({
   if (events.length === 0) return <div className="transcript hint">空会话</div>;
 
   return (
-    <div className="transcript">
-      {items.map((item, i) =>
+    <div className="transcript" ref={containerRef}>
+      {items.map((item) =>
         item.kind === "event" ? (
-          <EventView key={i} event={item.event} highlight={highlight} />
+          <EventView
+            key={item.index}
+            event={item.event}
+            index={item.index}
+            highlight={highlight}
+          />
         ) : (
-          <SidechainRun key={i} events={item.events} highlight={highlight} />
+          <SidechainRun
+            key={item.events[0].index}
+            events={item.events}
+            highlight={highlight}
+            locateEventIndex={locateEventIndex}
+          />
         ),
       )}
     </div>

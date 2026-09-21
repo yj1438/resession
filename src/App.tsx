@@ -78,6 +78,12 @@ export default function App() {
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
   const [ptyViewId, setPtyViewId] = useState<string | null>(null);
+  // 转录滚动定位：来自搜索命中（sequence 递增，支持重复点击同一命中重新定位）
+  const [locateHit, setLocateHit] = useState<{
+    eventIndex: number;
+    sequence: number;
+  } | null>(null);
+  const locateSeqRef = useRef(0);
 
   const stopSidebarResize = useCallback(() => {
     if (!resizeRef.current) return;
@@ -367,6 +373,7 @@ export default function App() {
     // 从搜索结果返回项目树，才能真正展开并定位左侧会话。
     setQuery("");
     setHits(null);
+    setLocateHit(null);
     if (session) {
       setSelectedId(session.id);
       setPtyViewId(null);
@@ -475,10 +482,13 @@ export default function App() {
           onSelect={(id) => {
             setSelectedId(id);
             setPtyViewId(null);
+            setLocateHit(null);
           }}
           onOpenHit={(h) => {
             setSelectedId(h.session.id);
             setPtyViewId(null);
+            locateSeqRef.current += 1;
+            setLocateHit({ eventIndex: h.eventIndex, sequence: locateSeqRef.current });
           }}
           onRename={handleRename}
           onArchive={handleArchive}
@@ -550,6 +560,8 @@ export default function App() {
                 key={selected.id}
                 session={selected}
                 highlight={hits ? query.trim() : undefined}
+                locateEventIndex={locateHit?.eventIndex}
+                locateSequence={locateHit?.sequence ?? 0}
               />
             </>
           ) : (

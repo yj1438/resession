@@ -496,6 +496,24 @@ body.resizing-sidebar {
   word-break: break-word;
 }
 
+/* 搜索定位：命中的消息居中滚动后闪烁标记 */
+.locate-flash {
+  animation: locate-flash 2.6s ease-out;
+  border-radius: 6px;
+}
+
+@keyframes locate-flash {
+  0%,
+  45% {
+    background: rgba(227, 179, 65, 0.22);
+    outline: 1px solid rgba(227, 179, 65, 0.55);
+  }
+  100% {
+    background: transparent;
+    outline: 1px solid transparent;
+  }
+}
+
 /* 助手消息 markdown */
 .md {
   line-height: 1.55;
