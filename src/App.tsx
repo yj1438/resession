@@ -7,6 +7,7 @@ import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import { invoke, isTauri } from "./api";
+import { checkUpdate, type UpdateInfo } from "./update";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
@@ -85,6 +86,8 @@ export default function App() {
     sequence: number;
   } | null>(null);
   const locateSeqRef = useRef(0);
+  // 更新检查：启动 3s 后静默查一次 GitHub Releases
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
   const stopSidebarResize = useCallback(() => {
     if (!resizeRef.current) return;
@@ -154,8 +157,14 @@ export default function App() {
         setArchivedIds(new Set(s.archived));
       })
       .catch((e) => console.error("get_settings failed:", e));
+    const u = setTimeout(() => {
+      checkUpdate().then(setUpdate).catch(() => {});
+    }, 3000);
     const t = setInterval(refreshSessions, 15000);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      clearTimeout(u);
+    };
   }, [refreshSessions]);
 
   const refreshPtys = useCallback(() => {
@@ -593,6 +602,15 @@ export default function App() {
             {selected.gitBranch ? ` · ⎇ ${selected.gitBranch}` : ""}
             {" · "}
           </span>
+        )}
+        {update?.hasUpdate && (
+          <button
+            className="update-chip"
+            title={`去 Releases 下载 v${update.latest}`}
+            onClick={() => void invoke("open_url", { url: update.url }).catch(() => {})}
+          >
+            🔄 新版本 v{update.latest} 可用
+          </button>
         )}
         {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"} ·{" "}
         {activePtys.filter((p) => busyIds.has(p.id)).length} 忙 /{" "}

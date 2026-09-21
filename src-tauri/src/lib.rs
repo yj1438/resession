@@ -200,6 +200,36 @@ fn reveal_logs_dir() -> Result<String, String> {
     Ok(dir.display().to_string())
 }
 
+/// 用系统默认浏览器打开 https 链接（严格白名单，防参数注入）
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("only https urls are allowed".into());
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// 在系统文件管理器中定位 settings.json（不存在则先创建空文件）
 #[tauri::command]
 fn reveal_settings_file() -> Result<String, String> {
@@ -444,6 +474,7 @@ pub fn run() {
             reveal_settings_file,
             logs_dir,
             reveal_logs_dir,
+            open_url,
             resume_session,
             new_session,
             known_projects,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke, isTauri } from "../api";
+import { checkUpdate } from "../update";
 import type { AppSettings } from "../types";
 
 // 设置面板：claude 路径覆盖 / 忙闲阈值 / 别名管理。
@@ -20,6 +21,24 @@ export default function SettingsPanel({
   const [logsPath, setLogsPath] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
+  const [updateUrl, setUpdateUrl] = useState<string | null>(null);
+
+  const runUpdateCheck = async () => {
+    if (!isTauri) return;
+    try {
+      const info = await checkUpdate();
+      if (info.hasUpdate) {
+        setUpdateMsg(`发现新版本 v${info.latest}`);
+        setUpdateUrl(info.url);
+      } else {
+        setUpdateMsg(`已是最新（v${info.current}）`);
+        setUpdateUrl(null);
+      }
+    } catch (e) {
+      setUpdateMsg(`检查失败：${String(e)}`);
+    }
+  };
 
   useEffect(() => {
     if (!isTauri) return;
@@ -141,6 +160,22 @@ export default function SettingsPanel({
             <button className="term-close" onClick={() => void revealLogsDir()}>
               打开日志目录
             </button>
+          </div>
+
+          <label className="set-label">版本更新</label>
+          <div className="settings-file-row">
+            <button className="term-close" onClick={() => void runUpdateCheck()}>
+              检查更新
+            </button>
+            {updateMsg && <span className="hint">{updateMsg}</span>}
+            {updateUrl && (
+              <button
+                className="term-close"
+                onClick={() => void invoke("open_url", { url: updateUrl }).catch(() => {})}
+              >
+                打开下载页
+              </button>
+            )}
           </div>
         </div>
         <div className="np-actions">
