@@ -21,6 +21,7 @@ const MOCK_SESSIONS: SessionMeta[] = [
     title: "claude code 的会话总是关闭后忘记找回来了（mock）",
     createdAt: "2026-09-19T15:40:00Z",
     modifiedAt: "2026-09-19T16:10:00Z",
+    gitBranch: "main",
     messageCount: 42,
     sourceFile: "C:\\Users\\you\\.claude\\projects\\mock.jsonl",
   },
@@ -586,6 +587,13 @@ export default function App() {
       )}
 
       <footer className="statusbar" data-tick={tick}>
+        {selected && (
+          <span className="statusbar-session" title={selected.cwd ?? selected.projectDir}>
+            📂 {pathBaseName(selected.cwd ?? selected.projectDir)}
+            {selected.gitBranch ? ` · ⎇ ${selected.gitBranch}` : ""}
+            {" · "}
+          </span>
+        )}
         {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"} ·{" "}
         {activePtys.filter((p) => busyIds.has(p.id)).length} 忙 /{" "}
         {activePtys.length} 跑

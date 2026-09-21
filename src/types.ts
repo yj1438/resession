@@ -12,6 +12,7 @@ export interface SessionMeta {
   title: string | null;
   createdAt: string | null;
   modifiedAt: string | null;
+  gitBranch: string | null;
   messageCount: number;
   sourceFile: string;
 }

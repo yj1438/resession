@@ -50,6 +50,7 @@ fn sample_meta() -> SessionMeta {
         title: Some("t".into()),
         created_at: None,
         modified_at: Some("2026-09-19T00:00:00Z".into()),
+        git_branch: Some("main".into()),
         message_count: 1,
         source_file: "c:\\x\\u.jsonl".into(),
     }
@@ -60,7 +61,7 @@ fn session_meta_keys_are_camel_case() {
     let v = serde_json::to_value(&sample_meta()).unwrap();
     // 期望值按结构体声明顺序书写，比较前排序（排序规则 = 字节序，大写在前）
     let mut expected = [
-        "provider", "id", "cwd", "projectDir", "title", "createdAt", "modifiedAt", "messageCount", "sourceFile",
+        "provider", "id", "cwd", "projectDir", "title", "createdAt", "modifiedAt", "gitBranch", "messageCount", "sourceFile",
     ]
     .iter()
     .map(|s| s.to_string())

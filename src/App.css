@@ -112,7 +112,7 @@ body {
 
 .session {
   position: relative;
-  padding: 8px 12px;
+  padding: 5px 12px;
   border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
   transition: background 100ms ease;
@@ -150,7 +150,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .session .time {
@@ -271,8 +271,8 @@ body.resizing-sidebar {
   gap: 7px;
   width: 100%;
   min-width: 0;
-  min-height: 34px;
-  padding: 7px 10px;
+  min-height: 28px;
+  padding: 5px 10px;
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   background: var(--panel-raised);
@@ -427,7 +427,7 @@ body.resizing-sidebar {
 .evt {
   display: flex;
   gap: 10px;
-  padding: 6px 0;
+  padding: 4px 0;
   border-bottom: 1px solid #161c24;
 }
 
@@ -516,11 +516,11 @@ body.resizing-sidebar {
 
 /* 助手消息 markdown */
 .md {
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .md p {
-  margin: 0.35em 0;
+  margin: 0.2em 0;
 }
 
 .md pre {
@@ -565,7 +565,7 @@ body.resizing-sidebar {
 
 .md ul,
 .md ol {
-  margin: 0.35em 0;
+  margin: 0.2em 0;
   padding-left: 1.4em;
 }
 
@@ -573,7 +573,7 @@ body.resizing-sidebar {
 .md h2,
 .md h3,
 .md h4 {
-  margin: 0.6em 0 0.3em;
+  margin: 0.45em 0 0.2em;
   font-size: 1em;
 }
 

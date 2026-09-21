@@ -20,6 +20,8 @@ pub struct SessionMeta {
     pub title: Option<String>,
     pub created_at: Option<String>,
     pub modified_at: Option<String>,
+    /// 会话最近所在的 git 分支（取文件中最后一次出现的 gitBranch）
+    pub git_branch: Option<String>,
     pub message_count: usize,
     pub source_file: PathBuf,
 }

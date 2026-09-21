@@ -23,6 +23,8 @@ struct RawLine {
     message: Option<RawMessage>,
     timestamp: Option<String>,
     cwd: Option<String>,
+    #[serde(rename = "gitBranch")]
+    git_branch: Option<String>,
     summary: Option<String>,
     #[serde(rename = "customTitle")]
     custom_title: Option<String>,
@@ -138,6 +140,7 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
     let mut summary: Option<String> = None;
     let mut first_user_text: Option<String> = None;
     let mut cwd: Option<String> = None;
+    let mut git_branch: Option<String> = None;
     let mut created_at: Option<String> = None;
     let mut message_count = 0usize;
 
@@ -148,6 +151,10 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
         }
         if created_at.is_none() {
             created_at = raw.timestamp.clone();
+        }
+        // 分支可能中途切换，取最后一次出现的值
+        if raw.git_branch.is_some() {
+            git_branch = raw.git_branch.clone();
         }
         match kind {
             "summary" => {
@@ -195,6 +202,7 @@ pub fn scan_session_file(path: &Path, project_dir: &str) -> std::io::Result<Sess
         title: title.or(summary).or(first_user_text),
         created_at,
         modified_at,
+        git_branch,
         message_count,
         source_file: path.to_path_buf(),
     };
