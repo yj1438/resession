@@ -56,6 +56,25 @@ jobs:
           path: ${{ matrix.bin }}
           if-no-files-found: error
 
+      # macOS 额外产出正式 .app 包（主力平台日用形态：有图标/Dock 名/菜单栏）
+      - name: Bundle macOS .app
+        if: runner.os == 'macOS'
+        run: npm run tauri build -- --bundles app
+
+      - name: Zip macOS .app
+        if: runner.os == 'macOS'
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          zip -qry "../../../ReSession-macos-arm64.app.zip" ReSession.app
+
+      - name: Upload macOS app bundle
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReSession-macos-arm64-app
+          path: ReSession-macos-arm64.app.zip
+          if-no-files-found: error
+
       # 仅 tag 触发时：按版本号重命名产物并挂到 GitHub Release。
       # 注意用矩阵确定的路径直接 cp（不要 test -f 猜测——MSYS 的 .exe 魔法
       # 会在 Windows 上造出假 mac 文件）；暂存目录用 release/ 与 vite 的 dist/ 隔离。
