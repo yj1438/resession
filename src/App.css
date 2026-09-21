@@ -162,8 +162,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 16px;
-  margin-top: 4px;
+  min-height: 14px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 11px;
 }
@@ -365,14 +365,14 @@ body.resizing-sidebar {
 }
 
 .project-group .session {
-  min-height: 51px;
-  padding: 8px 10px 7px 39px;
+  min-height: 42px;
+  padding: 5px 10px 5px 39px;
 }
 
 .project-group .session::before {
   content: "";
   position: absolute;
-  top: 18px;
+  top: 14px;
   left: 18px;
   width: 13px;
   height: 1px;
@@ -383,7 +383,7 @@ body.resizing-sidebar {
 .project-group .session::after {
   content: "";
   position: absolute;
-  top: 15px;
+  top: 11px;
   left: 29px;
   width: 5px;
   height: 5px;
@@ -519,15 +519,25 @@ body.resizing-sidebar {
   line-height: 1.45;
 }
 
+/* 紧凑排版：块级间距统一压缩；首尾元素清零，避免相邻 .md 块边距叠加 */
 .md p {
-  margin: 0.2em 0;
+  margin: 0.15em 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.35em 0 0.15em;
+  font-size: 1em;
 }
 
 .md pre {
+  margin: 0.3em 0;
   background: #0a0e12;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   overflow-x: auto;
   font-size: 12px;
 }
@@ -547,34 +557,49 @@ body.resizing-sidebar {
 
 .md table {
   border-collapse: collapse;
-  margin: 0.5em 0;
+  margin: 0.3em 0;
 }
 
 .md th,
 .md td {
   border: 1px solid var(--border);
-  padding: 4px 8px;
+  padding: 3px 8px;
 }
 
 .md blockquote {
   border-left: 3px solid var(--border);
-  margin: 0.5em 0;
+  margin: 0.3em 0;
   padding-left: 10px;
   color: var(--dim);
 }
 
+.md hr {
+  margin: 0.4em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
 .md ul,
 .md ol {
-  margin: 0.2em 0;
+  margin: 0.15em 0;
   padding-left: 1.4em;
 }
 
-.md h1,
-.md h2,
-.md h3,
-.md h4 {
-  margin: 0.45em 0 0.2em;
-  font-size: 1em;
+.md li {
+  margin: 0.1em 0;
+}
+
+/* GFM 松散列表会给每个 li 包 <p>，边距叠加 */
+.md li > p {
+  margin: 0.1em 0;
+}
+
+.md > :first-child {
+  margin-top: 0 !important;
+}
+
+.md > :last-child {
+  margin-bottom: 0 !important;
 }
 
 .terminal-wrap {
