@@ -65,7 +65,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd src-tauri/target/release/bundle/macos
-          zip -qry "../../../ReSession-macos-arm64.app.zip" ReSession.app
+          zip -qry "$GITHUB_WORKSPACE/ReSession-macos-arm64.app.zip" ReSession.app
+          ls -lh "$GITHUB_WORKSPACE/ReSession-macos-arm64.app.zip"
 
       - name: Upload macOS app bundle
         if: runner.os == 'macOS'
@@ -84,6 +85,10 @@ jobs:
         run: |
           mkdir -p release
           cp "${{ matrix.bin }}" "release/ReSession-${{ github.ref_name }}-${{ matrix.asset_name }}"
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cp "ReSession-macos-arm64.app.zip" \
+              "release/ReSession-${{ github.ref_name }}-macos-arm64.app.zip"
+          fi
           ls -la release/
 
       - name: Attach to GitHub Release
