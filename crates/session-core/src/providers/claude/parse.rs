@@ -99,8 +99,9 @@ fn content_to_blocks(content: Option<&Value>) -> Vec<Block> {
 /// 逐行读取原始行（共享给扫描与转录，跳过无法解析的行）。
 fn read_lines(path: &Path) -> std::io::Result<impl Iterator<Item = RawLine>> {
     let reader = BufReader::new(File::open(path)?);
-    Ok(reader.lines().map_while(Result::ok).filter_map(|line| {
-        // 宽容：坏行直接丢弃
+    Ok(reader.lines().filter_map(Result::ok).filter_map(|line| {
+        // 宽容：坏行直接丢弃。注意 filter_map 而非 map_while——
+        // map_while 会在第一个非法 UTF-8 行处截断，丢失其后全部合法行
         serde_json::from_str::<RawLine>(&line).ok()
     }))
 }
@@ -514,6 +515,99 @@ mod tests {
         assert_eq!(hits[1].event_index, 2); // 工具事件占了下标 1
 
         std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn entirely_garbage_file_degrades_gracefully() {
+        let dir = std::env::temp_dir().join("resession-test-garbage");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("bad0bad0-0000-0000-0000-000000000000.jsonl");
+        std::fs::write(&file, "not json at all\n{broken\n[1,2\n").unwrap();
+
+        // 整个文件都是坏行：不炸，元数据全空，id 取自文件名
+        let meta = scan_session_file(&file, "proj").unwrap();
+        assert_eq!(meta.id, "bad0bad0-0000-0000-0000-000000000000");
+        assert_eq!(meta.title, None);
+        assert_eq!(meta.cwd, None);
+        assert_eq!(meta.message_count, 0);
+        assert!(load_events(&file).unwrap().is_empty());
+        assert!(search_file(&meta, "anything").is_empty());
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn invalid_utf8_line_does_not_truncate_rest() {
+        let dir = std::env::temp_dir().join("resession-test-utf8");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("e2e0e2e0-0000-0000-0000-000000000000.jsonl");
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(
+            b"{\"type\":\"user\",\"message\":{\"content\":\"before\"}}\n",
+        );
+        bytes.extend_from_slice(&[0xFF, 0xFE, b'\n']); // 非法 UTF-8 行
+        bytes.extend_from_slice(
+            b"{\"type\":\"assistant\",\"message\":{\"content\":\"after\"}}\n",
+        );
+        std::fs::write(&file, &bytes).unwrap();
+
+        // 曾经 map_while 在此截断：after 行丢失。修复后应完整解析
+        let events = load_events(&file).unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].role, Role::User);
+        assert_eq!(events[1].role, Role::Assistant);
+        let meta = scan_session_file(&file, "proj").unwrap();
+        assert_eq!(meta.message_count, 2);
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn missing_message_field_is_tolerated() {
+        let dir = std::env::temp_dir().join("resession-test-nomsg");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("n0m5g000-0000-0000-0000-000000000000.jsonl");
+        std::fs::write(
+            &file,
+            concat!(
+                "{\"type\":\"user\"}\n", // 无 message 字段
+                "{\"type\":\"assistant\",\"message\":null}\n", // message 为 null
+                "{\"type\":\"user\",\"cwd\":\"/tmp/x\",\"timestamp\":\"2026-09-20T00:00:00Z\"}\n"
+            ),
+        )
+        .unwrap();
+
+        // 扫描按行类型计数（真实 claude 偶发的缺字段行不丢会话）；
+        // 转录只保留有正文的行
+        let meta = scan_session_file(&file, "proj").unwrap();
+        assert_eq!(meta.message_count, 3);
+        assert_eq!(meta.cwd.as_deref(), Some("/tmp/x"));
+        let events = load_events(&file).unwrap();
+        assert!(events.is_empty());
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn missing_file_errors_and_search_degrades_to_empty() {
+        let ghost = std::env::temp_dir().join("resession-test-missing-does-not-exist.jsonl");
+
+        // 目录失效/文件被外部删除：读取报错，搜索安静降级为无命中
+        assert!(load_events(&ghost).is_err());
+        assert!(scan_session_file(&ghost, "proj").is_err());
+        let meta = SessionMeta {
+            provider: "claude".into(),
+            id: "ghost".into(),
+            cwd: None,
+            project_dir: "proj".into(),
+            title: None,
+            created_at: None,
+            modified_at: None,
+            git_branch: None,
+            message_count: 0,
+            source_file: ghost,
+        };
+        assert!(search_file(&meta, "query").is_empty());
     }
 
     #[test]

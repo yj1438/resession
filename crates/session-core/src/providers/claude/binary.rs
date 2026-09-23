@@ -142,6 +142,32 @@ mod tests {
         assert_eq!(args, vec!["/C", r"C:\npm\claude.cmd"]);
     }
 
+    /// 二进制不存在时的行为：显式 override 照用（spawn 报错比静默回退直观）；
+    /// 无 cwd 的会话回退到当前目录。
+    #[test]
+    fn explicit_override_used_verbatim_and_cwd_falls_back() {
+        set_override(Some("/no/such/claude-anywhere".into()));
+        let meta = SessionMeta {
+            provider: "claude".into(),
+            id: "abc123".into(),
+            cwd: None,
+            project_dir: "p".into(),
+            title: None,
+            created_at: None,
+            modified_at: None,
+            git_branch: None,
+            message_count: 0,
+            source_file: PathBuf::from("x.jsonl"),
+        };
+        let spec = build_resume_spec(&meta).expect("override 应短路 PATH 探测");
+        // 先清理再断言：即使断言失败也不污染其它测试
+        set_override(None);
+        assert!(spec.program.contains("claude-anywhere"));
+        assert!(spec.args.contains(&"--resume".to_string()));
+        assert!(spec.args.contains(&"abc123".to_string()));
+        assert_eq!(spec.cwd, PathBuf::from("."));
+    }
+
     #[test]
     fn exe_needs_no_wrapper() {
         let (program, args) = spawn_wrapping(PathBuf::from("/usr/local/bin/claude"));
