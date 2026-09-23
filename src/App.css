@@ -514,6 +514,14 @@ body.resizing-sidebar {
   }
 }
 
+/* 窗口化渲染的哨兵与加载提示 */
+.chunk-sentinel {
+  min-height: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 /* 助手消息 markdown */
 .md {
   line-height: 1.45;
