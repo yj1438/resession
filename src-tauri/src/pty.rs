@@ -1,7 +1,8 @@
 //! PTY 会话管理：portable-pty 生命周期 + 前端事件桥。
 //!
 //! 原则（architecture.md 3.3）：不解析、不记录、不干预终端内容。
-//! 生命周期：PTY 以「会话 id」为键**常驻**，直到 claude 退出或用户显式关闭；
+//! 生命周期：PTY 以「会话 id」为键，claude 退出（读线程收割后移除句柄）
+//! 或用户显式关闭（close()）时从运行列表消失；
 //! UI 切换只断开观看，回来时回放缓冲区重新附着（支持并行多会话）。
 
 use std::collections::HashMap;
@@ -10,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use session_core::ResumeSpec;
 
@@ -163,6 +164,14 @@ pub fn spawn(
             }
         }
         let _ = child.lock().unwrap().wait();
+        // 自然退出也要把句柄从运行列表移除（此前只有 close() 会删，
+        // 退出的 PTY 会永远残留在 pty_list 里）。先删再广播，
+        // 前端收到 pty-exit 刷新时列表已经干净。
+        // 锁序说明：此处已释放 child 锁再取 map 锁，与 close() 的
+        // map→child 顺序不会形成环路。
+        if let Some(h) = app.state::<PtyMap>().0.lock().unwrap().remove(&pty_id) {
+            drop(h); // master/缓冲随句柄释放，读端 EOF 生效
+        }
         log::info!("pty exited: {}", pty_id);
         let _ = app.emit(
             "pty-exit",
