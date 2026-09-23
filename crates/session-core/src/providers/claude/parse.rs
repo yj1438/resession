@@ -258,6 +258,13 @@ fn text_cache() -> &'static Mutex<HashMap<PathBuf, CachedText>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// 清空元数据与文本缓存（基准/测试用：测量冷路径时需要）
+#[doc(hidden)]
+pub fn clear_caches() {
+    cache().lock().unwrap().clear();
+    text_cache().lock().unwrap().clear();
+}
+
 /// 提取可搜索文本：仅 user/assistant 的 Text 块（设计确认：工具块不搜）。
 /// event_index 是在完整事件流（含工具事件）中的下标，v2 定位用。
 fn load_searchable(path: &Path) -> std::io::Result<Vec<CachedLine>> {

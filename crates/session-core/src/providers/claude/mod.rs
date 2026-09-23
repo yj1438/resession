@@ -10,11 +10,31 @@ use std::path::{Path, PathBuf};
 use crate::ir::{Event, SessionMeta};
 use crate::provider::{ResumeSpec, ScanError, SearchHit, SessionProvider};
 
-pub struct ClaudeProvider;
+pub struct ClaudeProvider {
+    /// 覆盖会话根目录（测试/基准用；None = ~/.claude/projects）
+    root: Option<PathBuf>,
+}
+
+impl Default for ClaudeProvider {
+    fn default() -> Self {
+        ClaudeProvider { root: None }
+    }
+}
 
 impl ClaudeProvider {
-    /// `~/.claude/projects`。找不到时返回错误（未安装 / 未产生过会话）。
-    fn sessions_root() -> Result<PathBuf, ScanError> {
+    pub fn with_root(root: PathBuf) -> Self {
+        ClaudeProvider { root: Some(root) }
+    }
+
+    /// 会话根目录：显式 root 优先，否则 `~/.claude/projects`。
+    /// 找不到时返回错误（未安装 / 未产生过会话）。
+    fn sessions_root(&self) -> Result<PathBuf, ScanError> {
+        if let Some(root) = &self.root {
+            if !root.is_dir() {
+                return Err(ScanError::RootMissing(root.display().to_string()));
+            }
+            return Ok(root.clone());
+        }
         let home = std::env::var("USERPROFILE")
             .or_else(|_| std::env::var("HOME"))
             .map_err(|_| ScanError::RootMissing("neither USERPROFILE nor HOME is set".into()))?;
@@ -23,6 +43,12 @@ impl ClaudeProvider {
             return Err(ScanError::RootMissing(root.display().to_string()));
         }
         Ok(root)
+    }
+
+    /// 清空元数据与可搜索文本缓存（基准/测试用：测量冷路径时需要）。
+    #[doc(hidden)]
+    pub fn clear_caches() {
+        parse::clear_caches();
     }
 }
 
@@ -94,7 +120,7 @@ impl SessionProvider for ClaudeProvider {
     }
 
     fn scan(&self) -> Result<Vec<SessionMeta>, ScanError> {
-        Ok(scan_root(&Self::sessions_root()?))
+        Ok(scan_root(&self.sessions_root()?))
     }
 
     fn load_transcript(&self, meta: &SessionMeta) -> Result<Vec<Event>, ScanError> {
@@ -110,7 +136,7 @@ impl SessionProvider for ClaudeProvider {
     }
 
     fn search(&self, query: &str) -> Result<Vec<SearchHit>, ScanError> {
-        Ok(search_root(&Self::sessions_root()?, query))
+        Ok(search_root(&self.sessions_root()?, query))
     }
 }
 
@@ -184,7 +210,7 @@ mod tests {
     /// 真机集成测试：本机装有 Claude Code 时应能扫出会话且 resume 命令可构造。
     #[test]
     fn scan_real_projects_dir_when_present() {
-        let Ok(sessions) = ClaudeProvider.scan() else {
+        let Ok(sessions) = ClaudeProvider::default().scan() else {
             eprintln!("~/.claude/projects 不存在，跳过集成断言");
             return;
         };
@@ -192,7 +218,7 @@ mod tests {
         // 最近会话排在最前
         let first = &sessions[0];
         assert_eq!(first.provider, "claude");
-        if let Ok(spec) = ClaudeProvider.resume_command(first) {
+        if let Ok(spec) = ClaudeProvider::default().resume_command(first) {
             let cmdline = spec.command_line();
             assert!(cmdline.contains("--resume"), "命令应含 --resume: {cmdline}");
             assert!(cmdline.contains(&first.id), "命令应含会话 id: {cmdline}");
