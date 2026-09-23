@@ -10,13 +10,22 @@ export function pathBaseName(path: string): string {
   return parts.at(-1) ?? path;
 }
 
+/** macOS 文件系统（APFS/HFS+）默认大小写不敏感，比较语义应与 Windows 看齐。 */
+function isCaseInsensitiveFs(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // navigator.platform 已废弃但 WKWebView 仍提供；userAgent 兜底
+  return /mac/i.test(navigator.platform ?? "") || /\bMac\b/.test(navigator.userAgent);
+}
+
 /**
  * 用于路径比较/分组的稳定形式。
- * Windows 路径统一分隔符并忽略大小写；Unix 路径保留大小写语义。
+ * Windows 与 macOS 的文件系统大小写不敏感，比较时归一；
+ * Linux 保留大小写语义。展示路径一律用原始值，不经过本函数。
  */
 export function normalizePath(path: string): string {
   const normalized = trimTrailingSeparators(path).replace(/\\/g, "/");
-  return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
+  const isWinDrive = /^[a-z]:\//i.test(normalized);
+  return isWinDrive || isCaseInsensitiveFs() ? normalized.toLowerCase() : normalized;
 }
 
 export function pathsEqual(left: string, right: string): boolean {

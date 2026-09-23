@@ -223,12 +223,13 @@ pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
         .collect()
 }
 
-/// 目录比较的归一化：仅 Windows 盘符路径忽略大小写与分隔符
+/// 目录比较的归一化：Windows 与 macOS（APFS/HFS+ 默认不区分大小写）
+/// 忽略大小写与分隔符；Linux 保留大小写语义。
 /// （与前端 paths.ts 的 normalizePath 语义一致）
 fn normalize_dir(p: &str) -> String {
     let trimmed = p.trim_end_matches(['\\', '/']).replace('\\', "/");
     let is_win = trimmed.len() >= 2 && trimmed.as_bytes()[1] == b':';
-    if is_win {
+    if is_win || cfg!(target_os = "macos") {
         trimmed.to_lowercase()
     } else {
         trimmed
@@ -264,8 +265,12 @@ mod tests {
     fn normalize_dir_matches_paths_ts_semantics() {
         // Windows：分隔符与大小写不敏感
         assert_eq!(normalize_dir("C:\\a\\b\\"), normalize_dir("c:/a/b"));
-        // Unix：大小写敏感
-        assert_ne!(normalize_dir("/Foo"), normalize_dir("/foo"));
+        // Linux：大小写敏感；macOS 文件系统大小写不敏感，比较归一
+        if !cfg!(target_os = "macos") {
+            assert_ne!(normalize_dir("/Foo"), normalize_dir("/foo"));
+        } else {
+            assert_eq!(normalize_dir("/Foo"), normalize_dir("/foo"));
+        }
         assert_eq!(normalize_dir("/Foo/"), normalize_dir("/Foo"));
     }
 
