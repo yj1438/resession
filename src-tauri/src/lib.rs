@@ -1,7 +1,7 @@
 mod pty;
 mod settings;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use session_core::{registry, Event, SearchHit, SessionMeta, SessionProvider};
@@ -22,11 +22,15 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     let aliases = settings.0.lock().unwrap().aliases.clone();
     let mut all = Vec::new();
     let mut errors: Vec<String> = Vec::new();
+    let mut ok_providers: HashSet<String> = HashSet::new();
     // 单 provider 失败不拖垮整体（与 design.md 的宽容原则一致）；
     // 但全部失败且零结果时向上抛——静默空列表会让用户误以为没有会话
     for p in registry() {
         match p.scan() {
-            Ok(mut s) => all.append(&mut s),
+            Ok(mut s) => {
+                ok_providers.insert(p.name().to_string());
+                all.append(&mut s);
+            }
             Err(e) => {
                 log::warn!("[{}] scan failed: {e}", p.name());
                 errors.push(format!("{} 扫描失败: {e}", p.name()));
@@ -36,6 +40,7 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     if all.is_empty() && !errors.is_empty() {
         return Err(format!("扫描会话失败：{}", errors.join("；")));
     }
+    prune_orphan_keys(&settings, &all, &ok_providers);
     // 别名覆盖：ReSession 别名 > 原生 /rename > summary > 首条消息
     for meta in &mut all {
         let key = format!("{}:{}", meta.provider, meta.id);
@@ -45,6 +50,32 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     }
     all.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
     Ok(all)
+}
+
+/// 清洗孤儿 key：会话文件被外部（终端/文件管理器）删除后，settings.json 里的
+/// 别名/归档键不再指向任何真实会话，随扫描顺带剔除。
+/// 只动「本次扫描成功的 provider」的 key——扫描失败的 provider 数据未卜，不碰。
+/// JSONL 宽容解析保证"文件在 ⇒ 扫得出"，因此不在 live 集合 ≈ 文件已不存在；
+/// 洗不掉的极端情况（瞬时 IO 错误）代价只是用户重新设一次别名。
+fn prune_orphan_keys(
+    settings: &SettingsState,
+    all: &[SessionMeta],
+    ok_providers: &HashSet<String>,
+) {
+    if ok_providers.is_empty() {
+        return;
+    }
+    let live: HashSet<String> = all
+        .iter()
+        .map(|m| format!("{}:{}", m.provider, m.id))
+        .collect();
+    let mut s = settings.0.lock().unwrap();
+    let before = (s.archived.len(), s.aliases.len());
+    s.archived.retain(|k| !is_orphan_key(k, &live, ok_providers));
+    s.aliases.retain(|k, _| !is_orphan_key(k, &live, ok_providers));
+    if (s.archived.len(), s.aliases.len()) != before {
+        let _ = s.save(); // 清洗失败不阻塞扫描（下次扫描会再试）
+    }
 }
 
 #[tauri::command]
@@ -414,9 +445,36 @@ fn new_session(
     Ok(id)
 }
 
+/// 孤儿判定：key 的 provider 本次扫描成功、但会话不在扫描结果中。
+/// 格式不明的旧键一律保留（保守，不误删）。
+fn is_orphan_key(key: &str, live: &HashSet<String>, ok_providers: &HashSet<String>) -> bool {
+    match key.split_once(':') {
+        None => false,
+        Some((prov, _)) => ok_providers.contains(prov) && !live.contains(key),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::KnownProject;
+
+    #[test]
+    fn orphan_key_rules() {
+        let live: HashSet<String> = ["claude:aaa", "codex:bbb"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let ok: HashSet<String> = ["claude".to_string(), "codex".to_string()].into_iter().collect();
+        // provider 扫描成功 + 会话消失 = 孤儿
+        assert!(is_orphan_key("claude:gone", &live, &ok));
+        // 还在的会话不是孤儿
+        assert!(!is_orphan_key("claude:aaa", &live, &ok));
+        // 扫描失败的 provider 数据未卜，不碰
+        let only_claude: HashSet<String> = ["claude".to_string()].into_iter().collect();
+        assert!(!is_orphan_key("codex:missing", &live, &only_claude));
+        // 格式不明的旧键保留
+        assert!(!is_orphan_key("no-colon-here", &live, &ok));
+    }
 
     /// 契约：KnownProject 必须 camelCase
     #[test]
