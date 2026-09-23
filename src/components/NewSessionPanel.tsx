@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke, isTauri } from "../api";
+import { reportError } from "./Toasts";
 
 interface KnownProject {
   path: string;
@@ -32,7 +33,7 @@ export default function NewSessionPanel({
     if (!isTauri) return;
     invoke<KnownProject[]>("known_projects")
       .then(setProjects)
-      .catch(() => {});
+      .catch((e) => reportError("获取已知项目失败", String(e)));
   }, []);
 
   const pickFolder = async () => {

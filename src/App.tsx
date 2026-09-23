@@ -9,6 +9,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import { invoke, isTauri } from "./api";
 import { checkUpdate, type UpdateInfo } from "./update";
 import { ask } from "@tauri-apps/plugin-dialog";
+import ToastHost, { reportError } from "./components/Toasts";
 import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
@@ -143,6 +144,7 @@ export default function App() {
       .then(setSessions)
       .catch((e) => {
         console.error("scan_sessions failed:", e);
+        reportError("扫描会话失败", String(e));
       });
   }, []);
 
@@ -156,7 +158,10 @@ export default function App() {
         setSettings(s);
         setArchivedIds(new Set(s.archived));
       })
-      .catch((e) => console.error("get_settings failed:", e));
+      .catch((e) => {
+        console.error("get_settings failed:", e);
+        reportError("读取设置失败", String(e));
+      });
     const u = setTimeout(() => {
       checkUpdate().then(setUpdate).catch(() => {});
     }, 3000);
@@ -171,7 +176,7 @@ export default function App() {
     if (!isTauri) return;
     invoke<PtyStatus[]>("pty_list")
       .then(setActivePtys)
-      .catch(() => {});
+      .catch((e) => reportError("获取运行状态失败", String(e)));
   }, []);
 
   useEffect(() => {
@@ -203,8 +208,11 @@ export default function App() {
         .then((result) => {
           if (!cancelled) setHits(result);
         })
-        .catch(() => {
-          if (!cancelled) setHits(null);
+        .catch((e) => {
+          if (!cancelled) {
+            setHits(null);
+            reportError("搜索失败", String(e));
+          }
         });
     }, 300);
     return () => {
@@ -286,7 +294,7 @@ export default function App() {
     }
     void invoke<string>("resume_session", { meta: s })
       .then(() => refreshPtys())
-      .catch(() => {});
+      .catch((e) => reportError("恢复会话失败", String(e)));
   };
 
   const startNewSession = (cwd: string) => {
@@ -299,7 +307,10 @@ export default function App() {
         // claude 写 jsonl 有几秒延迟，先补一枪，余下的交给 15s 周期
         setTimeout(refreshSessions, 4000);
       })
-      .catch((e) => console.error("new_session failed:", e));
+      .catch((e) => {
+        console.error("new_session failed:", e);
+        reportError("新建会话失败", String(e));
+      });
   };
 
   const handleRename = (s: SessionMeta, name: string) => {
@@ -316,7 +327,7 @@ export default function App() {
           ),
         ),
       )
-      .catch(() => {});
+      .catch((e) => reportError("重命名失败", String(e)));
   };
 
   // 归档只动 ReSession 配置层；items 支持批量（项目级归档一次调用）
@@ -334,7 +345,10 @@ export default function App() {
           return next;
         }),
       )
-      .catch((e) => console.error("set_archived failed:", e));
+      .catch((e) => {
+        console.error("set_archived failed:", e);
+        reportError("归档操作失败", String(e));
+      });
   };
 
   // 删除 = 移入系统废纸篓（后端守卫：运行中的会话拒绝）；逐个调用后统一刷新
@@ -370,7 +384,7 @@ export default function App() {
       }
     }
     if (errors.length > 0) {
-      window.alert(`部分会话删除失败：\n${errors.join("\n")}`);
+      reportError("部分会话删除失败", errors.join("；"));
     }
     if (selectedId && deletedIds.includes(selectedId)) {
       setSelectedId(null);
@@ -594,6 +608,8 @@ export default function App() {
           onSaved={setSettings}
         />
       )}
+
+      <ToastHost />
 
       <footer className="statusbar" data-tick={tick}>
         {selected && (

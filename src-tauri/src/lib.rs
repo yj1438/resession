@@ -21,12 +21,20 @@ fn provider_for(name: &str) -> Result<Box<dyn SessionProvider>, String> {
 fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, String> {
     let aliases = settings.0.lock().unwrap().aliases.clone();
     let mut all = Vec::new();
-    // 单 provider 失败不拖垮整体（与 design.md 的宽容原则一致）
+    let mut errors: Vec<String> = Vec::new();
+    // 单 provider 失败不拖垮整体（与 design.md 的宽容原则一致）；
+    // 但全部失败且零结果时向上抛——静默空列表会让用户误以为没有会话
     for p in registry() {
         match p.scan() {
             Ok(mut s) => all.append(&mut s),
-            Err(e) => log::warn!("[{}] scan failed: {e}", p.name()),
+            Err(e) => {
+                log::warn!("[{}] scan failed: {e}", p.name());
+                errors.push(format!("{} 扫描失败: {e}", p.name()));
+            }
         }
+    }
+    if all.is_empty() && !errors.is_empty() {
+        return Err(format!("扫描会话失败：{}", errors.join("；")));
     }
     // 别名覆盖：ReSession 别名 > 原生 /rename > summary > 首条消息
     for meta in &mut all {
