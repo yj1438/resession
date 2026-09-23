@@ -67,7 +67,7 @@ flowchart LR
 - [ ] 验证归档、恢复、移入废纸篓的安全边界和失败回滚；
 - [x] 增加坏 JSONL、缺字段、目录失效、二进制不存在等测试；
 - [x] 对 100、500、1000 个会话记录冷启动、重扫和搜索耗时（examples/bench.rs，结果见 docs/benchmarks.md：1000 会话热扫 37ms / 冷扫 165ms / 热搜索 83ms，远低于阈值）；
-- [ ] 前端用 20k 事件大会话实测转录渲染（Rust 侧 21ms 已达标），据结果决定虚拟滚动；
+- [x] 大会话渲染实测（20k 事件）：手写窗口化渲染（IntersectionObserver 扩窗 + 滚动锚定 + memo），加载 8s→秒开、滚动卡顿消除，零新依赖；
 - [ ] 固化 Windows、macOS 发布产物的启动冒烟检查；
 - [x] CI 固定执行 Rust 测试、TypeScript 编译和 Tauri 构建；
 - [x] 更新过期的产品定位与路线图。
