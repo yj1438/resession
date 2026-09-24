@@ -53,15 +53,16 @@ fn from_lookup_tool() -> Option<PathBuf> {
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect();
-    pick_result_line(&lines).map(PathBuf::from)
+    pick_result_line(&lines, cfg!(windows)).map(PathBuf::from)
 }
 
 /// Windows 的 `where` 按字母序返回全部命中，而 npm shim 三件套（`claude` /
 /// `claude.cmd` / `claude.ps1`）里排第一的无扩展名文件是 sh 脚本，CreateProcess
 /// 无法执行。优先 `.exe`，其次 `.cmd`/`.bat`（由 spawn_wrapping 做 cmd /C 包装），
 /// 最后才回退首行；unix 的 `which` 只有一行，直接取。
-fn pick_result_line<'a>(lines: &'a [&'a str]) -> Option<&'a str> {
-    if !cfg!(windows) {
+/// windows 参数显式传入（调用处传 cfg!(windows)），两种分支在任意平台都可测。
+fn pick_result_line<'a>(lines: &'a [&'a str], windows: bool) -> Option<&'a str> {
+    if !windows {
         return lines.first().copied();
     }
     let lower = |l: &str| l.to_ascii_lowercase();
@@ -162,20 +163,33 @@ mod tests {
     /// npm shim 三件套场景：无扩展名 sh 脚本排最前，必须跳过选 .cmd；
     /// 有 .exe 时优先 .exe（原生安装器与 npm 并存）。
     #[test]
-    fn lookup_result_prefers_runnable_shim() {
+    fn lookup_result_prefers_runnable_shim_on_windows() {
         let npm_shims = vec![
             r"C:\npm\claude",
             r"C:\npm\claude.cmd",
             r"C:\npm\claude.ps1",
         ];
-        let picked = pick_result_line(&npm_shims).unwrap();
+        let picked = pick_result_line(&npm_shims, true).unwrap();
         assert!(
             picked.ends_with(".cmd") || picked.ends_with(".exe"),
             "不应选中无扩展名的 sh shim: {picked}"
         );
 
         let with_exe = vec![r"C:\local\claude.exe", r"C:\npm\claude"];
-        assert_eq!(pick_result_line(&with_exe), Some(r"C:\local\claude.exe"));
+        assert_eq!(
+            pick_result_line(&with_exe, true),
+            Some(r"C:\local\claude.exe")
+        );
+    }
+
+    /// unix 侧：which 只有一行且无扩展名即可执行，取首行。
+    #[test]
+    fn lookup_result_takes_first_line_on_unix() {
+        let lines = vec!["/opt/homebrew/bin/claude"];
+        assert_eq!(
+            pick_result_line(&lines, false),
+            Some("/opt/homebrew/bin/claude")
+        );
     }
 
     #[cfg(windows)]
