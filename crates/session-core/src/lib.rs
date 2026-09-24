@@ -5,6 +5,7 @@
 //! - 所有 agent 特定逻辑必须收口在 `providers` 下，外部只认 [`provider::SessionProvider`]
 
 pub mod ir;
+pub mod platform;
 pub mod provider;
 pub mod providers;
 

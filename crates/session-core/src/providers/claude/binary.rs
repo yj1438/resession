@@ -79,6 +79,11 @@ fn common_locations() -> Vec<PathBuf> {
             v.push(appdata.join("npm").join("claude.cmd"));
         }
     }
+    // macOS GUI 启动时 PATH 是残缺的（见 platform::extra_bin_dirs）：
+    // Homebrew/npm/版本管理器安装的 claude 藏在这些标准落点里。
+    for dir in crate::platform::extra_bin_dirs() {
+        v.push(dir.join(claude_exe()));
+    }
     v
 }
 

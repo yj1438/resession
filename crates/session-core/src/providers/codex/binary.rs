@@ -70,6 +70,11 @@ pub fn find_binary() -> Option<PathBuf> {
     if let Some(appdata) = std::env::var_os("APPDATA") {
         candidates.push(PathBuf::from(appdata).join("npm").join("codex.cmd"));
     }
+    // macOS GUI 启动时 PATH 是残缺的（见 platform::extra_bin_dirs）：
+    // Homebrew/npm/版本管理器安装的 codex 藏在这些标准落点里。
+    for dir in crate::platform::extra_bin_dirs() {
+        candidates.push(dir.join(exe));
+    }
     candidates.into_iter().find(|path| path.is_file())
 }
 
@@ -78,42 +83,54 @@ pub fn find_binary() -> Option<PathBuf> {
 /// Windows: `%LOCALAPPDATA%\OpenAI\Codex\bin`（本机实测）；
 /// macOS 桌面版路径未实测，按同构布局尝试，找不到就走设置页手动指定。
 fn desktop_app_binary() -> Option<PathBuf> {
-    let base = if cfg!(windows) {
-        std::env::var_os("LOCALAPPDATA")
-            .map(|l| PathBuf::from(l).join("OpenAI").join("Codex").join("bin"))
-    } else {
-        std::env::var_os("HOME").map(|h| {
-            PathBuf::from(h)
-                .join("Library")
-                .join("Application Support")
-                .join("Codex")
-                .join("bin")
-        })
-    }?;
     let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
-    let mut versions: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(&base)
-        .ok()?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .map(|p| {
-            let modified = p
-                .metadata()
-                .and_then(|m| m.modified())
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-            (modified, p)
-        })
-        .collect();
-    versions.sort_by_key(|(modified, _)| *modified);
-    // 新到旧逐个尝试：最新版本目录可能只带工具（如 rg.exe）不带 CLI，
-    // 不能只看最新的一个。
-    while let Some((_, dir)) = versions.pop() {
-        let candidate = dir.join(exe);
-        if candidate.is_file() {
-            return Some(candidate);
+    for base in desktop_app_bases() {
+        let mut versions: Vec<(std::time::SystemTime, PathBuf)> = match std::fs::read_dir(&base)
+        {
+            Ok(entries) => entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .map(|p| {
+                    let modified = p
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    (modified, p)
+                })
+                .collect(),
+            Err(_) => continue,
+        };
+        versions.sort_by_key(|(modified, _)| *modified);
+        // 新到旧逐个尝试：最新版本目录可能只带工具（如 rg.exe）不带 CLI，
+        // 不能只看最新的一个。
+        while let Some((_, dir)) = versions.pop() {
+            let candidate = dir.join(exe);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
         }
     }
     None
+}
+
+/// Desktop CLI candidate roots. Windows layout verified on-device
+/// (%LOCALAPPDATA%/OpenAI/Codex/bin/<hash>/codex.exe); macOS layout is
+/// unverified, so both with/without OpenAI-segment candidates are probed
+/// until confirmed on a real Mac.
+fn desktop_app_bases() -> Vec<PathBuf> {
+    if cfg!(windows) {
+        return std::env::var_os("LOCALAPPDATA")
+            .map(|l| vec![PathBuf::from(l).join("OpenAI").join("Codex").join("bin")])
+            .unwrap_or_default();
+    }
+    let mut bases = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        let support = home.join("Library").join("Application Support");
+        bases.push(support.join("OpenAI").join("Codex").join("bin"));
+        bases.push(support.join("Codex").join("bin"));
+    }
+    bases
 }
 
 fn spawn_wrapping(binary: PathBuf) -> (String, Vec<String>) {
