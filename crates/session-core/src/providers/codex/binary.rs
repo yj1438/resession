@@ -57,6 +57,14 @@ pub fn find_binary() -> Option<PathBuf> {
     if let Some(path) = lookup_binary() {
         return Some(path);
     }
+    // macOS GUI 启动时 app 的 PATH 残缺：用登录 shell 解析出的 PATH 再查一遍
+    let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
+    for dir in crate::platform::login_shell_path_dirs() {
+        let candidate = dir.join(&exe);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
     // Codex 桌面版自带 CLI（不在 PATH 上）；会话 rollout 也由它写入，
     // 所以"有会话但找不到二进制"的机器多半装的是桌面版。
     if let Some(path) = desktop_app_binary() {
@@ -65,8 +73,7 @@ pub fn find_binary() -> Option<PathBuf> {
     let home = std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)?;
-    let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
-    let mut candidates = vec![home.join(".local").join("bin").join(exe)];
+    let mut candidates = vec![home.join(".local").join("bin").join(&exe)];
     if let Some(appdata) = std::env::var_os("APPDATA") {
         candidates.push(PathBuf::from(appdata).join("npm").join("codex.cmd"));
     }
@@ -202,4 +209,18 @@ mod tests {
         assert_eq!(spec.args, vec!["resume".to_string(), meta.id.clone()]);
         assert_eq!(spec.cwd, PathBuf::from("."));
     }
+
+    /// 带空格的安装路径：spawn_wrapping 原样保留（固定行为防回归）。
+    #[cfg(windows)]
+    #[test]
+    fn cmd_wrapper_preserves_spaces_in_path() {
+        let (program, args) =
+            spawn_wrapping(PathBuf::from(r"C:\Users\John Smith\AppData\Roaming\npm\codex.cmd"));
+        assert_eq!(program, "cmd");
+        assert_eq!(
+            args,
+            vec!["/C", r"C:\Users\John Smith\AppData\Roaming\npm\codex.cmd"]
+        );
+    }
 }
+

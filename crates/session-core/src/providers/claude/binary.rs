@@ -26,6 +26,13 @@ pub fn find_claude_binary() -> Option<PathBuf> {
     if let Some(p) = from_lookup_tool() {
         return Some(p);
     }
+    // macOS GUI 启动时 app 的 PATH 残缺：用登录 shell 解析出的 PATH 再查一遍
+    for dir in crate::platform::login_shell_path_dirs() {
+        let candidate = dir.join(claude_exe());
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
     common_locations().into_iter().find(|p| p.exists())
 }
 
@@ -179,6 +186,20 @@ mod tests {
         assert_eq!(args, vec!["/C", r"C:\npm\claude.cmd"]);
     }
 
+    /// 带空格的安装路径（如 C:\Users\John Smith\...）：spawn_wrapping 自身
+    /// 必须原样保留路径（ConPTY 层负责最终引号处理），固定该行为防回归。
+    #[cfg(windows)]
+    #[test]
+    fn cmd_wrapper_preserves_spaces_in_path() {
+        let (program, args) =
+            spawn_wrapping(PathBuf::from(r"C:\Users\John Smith\AppData\Roaming\npm\claude.cmd"));
+        assert_eq!(program, "cmd");
+        assert_eq!(
+            args,
+            vec!["/C", r"C:\Users\John Smith\AppData\Roaming\npm\claude.cmd"]
+        );
+    }
+
     /// 二进制不存在时的行为：显式 override 照用（spawn 报错比静默回退直观）；
     /// 无 cwd 的会话回退到当前目录。
     #[test]
@@ -212,3 +233,4 @@ mod tests {
         assert!(program.ends_with("claude"));
     }
 }
+
