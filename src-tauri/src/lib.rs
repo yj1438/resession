@@ -500,7 +500,7 @@ fn is_orphan_key(key: &str, live: &HashSet<String>, ok_providers: &HashSet<Strin
 
 #[cfg(test)]
 mod tests {
-    use super::KnownProject;
+    use super::*;
 
     #[test]
     fn orphan_key_rules() {

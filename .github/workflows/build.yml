@@ -43,6 +43,11 @@ jobs:
         working-directory: crates/session-core
         run: cargo test
 
+      # tauri 壳层测试（命令/DTO 契约/守卫逻辑——v0.5.0 曾因漏测此处放过编译错误）
+      - name: Run src-tauri tests
+        working-directory: src-tauri
+        run: cargo test
+
       - name: Install frontend deps
         run: npm ci
 
