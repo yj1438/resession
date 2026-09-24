@@ -30,7 +30,7 @@ pub fn find_claude_binary() -> Option<PathBuf> {
 }
 
 fn from_lookup_tool() -> Option<PathBuf> {
-    // Windows: where；unix: which。二者都是"每行一个结果"，取第一行。
+    // Windows: where；unix: which。二者都是"每行一个结果"。
     let (tool, query) = if cfg!(windows) {
         ("where", "claude")
     } else {
@@ -40,17 +40,30 @@ fn from_lookup_tool() -> Option<PathBuf> {
     if !out.status.success() {
         return None;
     }
-    let first = std::str::from_utf8(&out.stdout)
+    let lines: Vec<&str> = std::str::from_utf8(&out.stdout)
         .ok()?
         .lines()
-        .next()?
-        .trim()
-        .to_string();
-    if first.is_empty() {
-        None
-    } else {
-        Some(PathBuf::from(first))
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    pick_result_line(&lines).map(PathBuf::from)
+}
+
+/// Windows 的 `where` 按字母序返回全部命中，而 npm shim 三件套（`claude` /
+/// `claude.cmd` / `claude.ps1`）里排第一的无扩展名文件是 sh 脚本，CreateProcess
+/// 无法执行。优先 `.exe`，其次 `.cmd`/`.bat`（由 spawn_wrapping 做 cmd /C 包装），
+/// 最后才回退首行；unix 的 `which` 只有一行，直接取。
+fn pick_result_line<'a>(lines: &'a [&'a str]) -> Option<&'a str> {
+    if !cfg!(windows) {
+        return lines.first().copied();
     }
+    let lower = |l: &str| l.to_ascii_lowercase();
+    let exe = lines.iter().find(|l| lower(l).ends_with(".exe")).copied();
+    let cmd = lines
+        .iter()
+        .find(|l| lower(l).ends_with(".cmd") || lower(l).ends_with(".bat"))
+        .copied();
+    exe.or(cmd).or_else(|| lines.first().copied())
 }
 
 fn common_locations() -> Vec<PathBuf> {
@@ -133,6 +146,25 @@ pub fn build_new_session_spec(cwd: PathBuf) -> Result<ResumeSpec, ScanError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// npm shim 三件套场景：无扩展名 sh 脚本排最前，必须跳过选 .cmd；
+    /// 有 .exe 时优先 .exe（原生安装器与 npm 并存）。
+    #[test]
+    fn lookup_result_prefers_runnable_shim() {
+        let npm_shims = vec![
+            r"C:\npm\claude",
+            r"C:\npm\claude.cmd",
+            r"C:\npm\claude.ps1",
+        ];
+        let picked = pick_result_line(&npm_shims).unwrap();
+        assert!(
+            picked.ends_with(".cmd") || picked.ends_with(".exe"),
+            "不应选中无扩展名的 sh shim: {picked}"
+        );
+
+        let with_exe = vec![r"C:\local\claude.exe", r"C:\npm\claude"];
+        assert_eq!(pick_result_line(&with_exe), Some(r"C:\local\claude.exe"));
+    }
 
     #[cfg(windows)]
     #[test]

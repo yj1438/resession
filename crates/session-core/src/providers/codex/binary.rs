@@ -26,11 +26,27 @@ fn lookup_binary() -> Option<PathBuf> {
     if !output.status.success() {
         return None;
     }
-    std::str::from_utf8(&output.stdout)
+    let lines: Vec<&str> = std::str::from_utf8(&output.stdout)
         .ok()?
         .lines()
         .map(str::trim)
-        .find(|line| !line.is_empty())
+        .filter(|line| !line.is_empty())
+        .collect();
+    // Windows 的 `where` 会把 npm shim 的无扩展名 sh 脚本排在最前（不可执行），
+    // 需要按 .exe > .cmd/.bat > 首行的优先级挑选；与 claude 侧同一规则。
+    if !cfg!(windows) {
+        return lines.first().map(PathBuf::from);
+    }
+    let lower = |l: &str| l.to_ascii_lowercase();
+    lines
+        .iter()
+        .find(|l| lower(l).ends_with(".exe"))
+        .or_else(|| {
+            lines
+                .iter()
+                .find(|l| lower(l).ends_with(".cmd") || lower(l).ends_with(".bat"))
+        })
+        .or_else(|| lines.first())
         .map(PathBuf::from)
 }
 

@@ -3,6 +3,8 @@ import { invoke, isTauri } from "../api";
 import { checkUpdate } from "../update";
 import type { AppSettings } from "../types";
 
+const isWindows = navigator.userAgent.includes("Windows");
+
 // 设置面板：claude 路径覆盖 / 忙闲阈值 / 别名管理。
 // 保存走 save_settings（后端同步更新二进制 override），别名删除即时生效。
 export default function SettingsPanel({
@@ -113,7 +115,11 @@ export default function SettingsPanel({
           <input
             className="np-input full"
             value={claudePath}
-            placeholder="例如 C:\Users\you\AppData\Roaming\npm\claude.cmd"
+            placeholder={
+              isWindows
+                ? "例如 C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd"
+                : "例如 /Users/you/.local/bin/claude"
+            }
             onChange={(e) => setClaudePath(e.target.value)}
           />
 
@@ -123,7 +129,11 @@ export default function SettingsPanel({
           <input
             className="np-input full"
             value={codexPath}
-            placeholder="例如 /Users/you/.local/bin/codex"
+            placeholder={
+              isWindows
+                ? "例如 C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
+                : "例如 /Users/you/.local/bin/codex"
+            }
             onChange={(e) => setCodexPath(e.target.value)}
           />
 
