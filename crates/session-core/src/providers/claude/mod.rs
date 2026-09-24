@@ -119,6 +119,14 @@ impl SessionProvider for ClaudeProvider {
         "claude"
     }
 
+    fn can_trash_native(&self) -> bool {
+        true
+    }
+
+    fn can_prune_missing_metadata(&self) -> bool {
+        true
+    }
+
     fn scan(&self) -> Result<Vec<SessionMeta>, ScanError> {
         Ok(scan_root(&self.sessions_root()?))
     }

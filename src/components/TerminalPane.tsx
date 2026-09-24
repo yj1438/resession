@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { invoke, isTauri } from "../api";
+import { providerLabel } from "../providers";
 import type { SessionMeta } from "../types";
 
 interface PtyEvent {
@@ -150,8 +151,8 @@ export default function TerminalPane({
       <div className="terminal-bar">
         <span className="hint mono">
           {session
-            ? `原生 PTY · claude --resume ${session.id.slice(0, 8)}…`
-            : "新会话 · 原生 claude"}
+            ? `原生 PTY · ${session.provider} resume ${session.id.slice(0, 8)}…`
+            : `新会话 · 原生 ${providerLabel(attachPtyId?.split(":")[1] ?? "claude")}`}
         </span>
         <button className="term-close" onClick={closePty}>
           ⏹ 关闭终端

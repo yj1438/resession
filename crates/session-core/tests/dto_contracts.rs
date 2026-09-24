@@ -113,8 +113,15 @@ fn search_hit_keys_are_camel_case() {
     assert_no_snake(&v);
 }
 
-/// SessionProvider 本身不跨端，但 registry 必须至少含 claude（防手滑清空）
+/// 两个本地 Agent 都应由统一 registry 暴露。
 #[test]
 fn registry_nonempty() {
-    assert!(!session_core::registry().is_empty());
+    let providers = session_core::registry();
+    let names: Vec<&str> = providers.iter().map(|p| p.name()).collect();
+    assert!(names.contains(&"claude"));
+    assert!(names.contains(&"codex"));
+    assert!(providers.iter().find(|p| p.name() == "claude").unwrap().can_trash_native());
+    let codex = providers.iter().find(|p| p.name() == "codex").unwrap();
+    assert!(!codex.can_trash_native());
+    assert!(!codex.can_prune_missing_metadata());
 }

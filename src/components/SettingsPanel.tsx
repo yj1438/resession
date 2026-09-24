@@ -15,6 +15,7 @@ export default function SettingsPanel({
   onSaved: (s: AppSettings) => void;
 }) {
   const [claudePath, setClaudePath] = useState(settings.claudePath ?? "");
+  const [codexPath, setCodexPath] = useState(settings.codexPath ?? "");
   const [busyMs, setBusyMs] = useState(String(settings.busyMs));
   const [aliases, setAliases] = useState(settings.aliases);
   const [settingsPath, setSettingsPath] = useState("");
@@ -73,6 +74,7 @@ export default function SettingsPanel({
     try {
       const s = await invoke<AppSettings>("save_settings", {
         claudePath: claudePath.trim() || null,
+        codexPath: codexPath.trim() || null,
         busyMs: Number(busyMs) || 4000,
       });
       onSaved(s);
@@ -113,6 +115,16 @@ export default function SettingsPanel({
             value={claudePath}
             placeholder="例如 C:\Users\you\AppData\Roaming\npm\claude.cmd"
             onChange={(e) => setClaudePath(e.target.value)}
+          />
+
+          <label className="set-label">
+            codex 可执行路径（留空 = 自动探测 PATH 与常见安装位置）
+          </label>
+          <input
+            className="np-input full"
+            value={codexPath}
+            placeholder="例如 /Users/you/.local/bin/codex"
+            onChange={(e) => setCodexPath(e.target.value)}
           />
 
           <label className="set-label">

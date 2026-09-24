@@ -10,6 +10,7 @@ import { invoke, isTauri } from "./api";
 import { checkUpdate, type UpdateInfo } from "./update";
 import { ask } from "@tauri-apps/plugin-dialog";
 import ToastHost, { reportError } from "./components/Toasts";
+import { PROVIDERS, providerLabel, ptySessionId, type ProviderName } from "./providers";
 import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
@@ -26,6 +27,18 @@ const MOCK_SESSIONS: SessionMeta[] = [
     gitBranch: "main",
     messageCount: 42,
     sourceFile: "C:\\Users\\you\\.claude\\projects\\mock.jsonl",
+  },
+  {
+    provider: "codex",
+    id: "89abcdef-0123-4567-89ab-cdef01234567",
+    cwd: "D:\\code\\my-app",
+    projectDir: "my-app",
+    title: "整理项目架构与测试覆盖（mock）",
+    createdAt: "2026-09-20T09:00:00Z",
+    modifiedAt: "2026-09-20T09:30:00Z",
+    gitBranch: "main",
+    messageCount: 18,
+    sourceFile: "C:\\Users\\you\\.codex\\sessions\\mock.jsonl",
   },
 ];
 
@@ -54,7 +67,7 @@ function initialSidebarWidth(): number {
 
 // 归档/别名共用的会话键（与 Rust 侧 `provider:<uuid>` 格式一致）
 function sessionKey(s: SessionMeta): string {
-  return `${s.provider}:${s.id}`;
+  return ptySessionId(s.provider, s.id);
 }
 
 export default function App() {
@@ -62,6 +75,7 @@ export default function App() {
   const [usingMock] = useState(!isTauri);
   const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
+  const [providerFilter, setProviderFilter] = useState<"all" | ProviderName>("all");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -226,18 +240,24 @@ export default function App() {
       ? sessions
       : sessions.filter((s) => !archivedIds.has(sessionKey(s)));
     const q = query.trim().toLowerCase();
-    if (!q) return kept;
-    return kept.filter((s) =>
+    const byProvider = providerFilter === "all"
+      ? kept
+      : kept.filter((s) => s.provider === providerFilter);
+    if (!q) return byProvider;
+    return byProvider.filter((s) =>
       [s.title, s.cwd, s.projectDir].some((f) => f?.toLowerCase().includes(q)),
     );
-  }, [sessions, query, archivedIds, showArchived]);
+  }, [sessions, query, archivedIds, showArchived, providerFilter]);
 
   // 搜索结果同样屏蔽已归档会话
   const visibleHits = useMemo(
     () =>
-      hits?.filter((h) => showArchived || !archivedIds.has(sessionKey(h.session))) ??
+      hits?.filter((h) =>
+        (providerFilter === "all" || h.session.provider === providerFilter) &&
+        (showArchived || !archivedIds.has(sessionKey(h.session)))
+      ) ??
       null,
-    [hits, archivedIds, showArchived],
+    [hits, archivedIds, showArchived, providerFilter],
   );
 
   // 侧栏底部“已归档”开关的计数（按全量会话，不随搜索过滤）
@@ -246,10 +266,10 @@ export default function App() {
     [sessions, archivedIds],
   );
 
-  const selected = sessions.find((s) => s.id === selectedId) ?? null;
+  const selected = sessions.find((s) => sessionKey(s) === selectedId) ?? null;
   // 视图优先级：选中会话的终端 > 正在观看的合成终端 > 转录态 > 空
   const runningSelected = selected
-    ? activePtys.some((p) => p.id === selected.id)
+    ? activePtys.some((p) => p.id === sessionKey(selected))
     : false;
   const ptyAlive = ptyViewId
     ? activePtys.some((p) => p.id === ptyViewId)
@@ -282,7 +302,7 @@ export default function App() {
     // 直接附着观看，绝不能再拉起第二个 resume 进程踩同一个转录
     const liveNew = activePtys.find(
       (p) =>
-        p.id.startsWith("new:") &&
+        p.id.startsWith(`new:${s.provider}:`) &&
         !!s.cwd &&
         !!p.cwd &&
         pathsEqual(p.cwd, s.cwd),
@@ -297,14 +317,16 @@ export default function App() {
       .catch((e) => reportError("恢复会话失败", String(e)));
   };
 
-  const startNewSession = (cwd: string) => {
+  const startNewSession = (cwd: string, provider: ProviderName) => {
     if (!isTauri) return;
-    void invoke<string>("new_session", { cwd })
+    void invoke<string>("new_session", { cwd, provider })
       .then((id) => {
+        setSelectedId(null);
+        setLocateHit(null);
         setPtyViewId(id);
         setPanelOpen(false);
         refreshPtys();
-        // claude 写 jsonl 有几秒延迟，先补一枪，余下的交给 15s 周期
+        // Agent 写 jsonl 有几秒延迟，先补一枪，余下的交给 15s 周期
         setTimeout(refreshSessions, 4000);
       })
       .catch((e) => {
@@ -323,7 +345,7 @@ export default function App() {
       .then(() =>
         setSessions((prev) =>
           prev.map((x) =>
-            x.id === s.id ? { ...x, title: name.trim() || x.title } : x,
+            sessionKey(x) === sessionKey(s) ? { ...x, title: name.trim() || x.title } : x,
           ),
         ),
       )
@@ -360,7 +382,7 @@ export default function App() {
       const cwd = s.cwd;
       if (!cwd) return false;
       return activePtys.some(
-        (p) => p.id.startsWith("new:") && !!p.cwd && pathsEqual(p.cwd, cwd),
+        (p) => p.id.startsWith(`new:${s.provider}:`) && !!p.cwd && pathsEqual(p.cwd, cwd),
       );
     });
     if (creating) {
@@ -378,7 +400,7 @@ export default function App() {
     for (const s of items) {
       try {
         await invoke<void>("delete_session", { meta: s });
-        deletedIds.push(s.id);
+        deletedIds.push(sessionKey(s));
       } catch (e) {
         errors.push(String(e));
       }
@@ -393,18 +415,18 @@ export default function App() {
   };
 
   const viewRunningPty = (pty: PtyStatus) => {
-    const session = sessions.find((item) => item.id === pty.id);
+    const session = sessions.find((item) => sessionKey(item) === pty.id);
     // 从搜索结果返回项目树，才能真正展开并定位左侧会话。
     setQuery("");
     setHits(null);
     setLocateHit(null);
     if (session) {
-      setSelectedId(session.id);
+      setSelectedId(sessionKey(session));
       setPtyViewId(null);
       locateSequenceRef.current += 1;
-      setLocateRequest({ id: session.id, sequence: locateSequenceRef.current });
+      setLocateRequest({ id: sessionKey(session), sequence: locateSequenceRef.current });
     } else {
-      // new:<uuid> 在 Claude 写出真实 JSONL 前还没有可定位的会话节点。
+      // new:<provider>:<uuid> 在 Agent 写出真实 JSONL 前还没有可定位的会话节点。
       setSelectedId(null);
       setPtyViewId(pty.id);
     }
@@ -440,6 +462,17 @@ export default function App() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <select
+          className="provider-filter"
+          aria-label="筛选 Agent"
+          value={providerFilter}
+          onChange={(e) => setProviderFilter(e.target.value as "all" | ProviderName)}
+        >
+          <option value="all">全部 Agent</option>
+          {PROVIDERS.map((item) => (
+            <option key={item.value} value={item.value}>{item.label}</option>
+          ))}
+        </select>
         <button className="new-btn" onClick={() => setPanelOpen(true)}>
           ➕ 新会话
         </button>
@@ -462,26 +495,28 @@ export default function App() {
           </span>
           <div className="running-list">
             {activePtys.map((pty) => {
-              const session = sessions.find((item) => item.id === pty.id);
+              const session = sessions.find((item) => sessionKey(item) === pty.id);
               const busy = busyIds.has(pty.id);
+              const ptyProvider = session?.provider ?? pty.id.split(":")[1] ?? "claude";
               const label = session?.title ?? (pty.id.startsWith("new:") ? "新会话" : pty.id.slice(0, 8));
               const project = session
                 ? pathBaseName(session.cwd || session.projectDir)
                 : pathBaseName(pty.cwd);
               const active = session
-                ? selectedId === session.id
+                ? selectedId === sessionKey(session)
                 : ptyViewId === pty.id;
               return (
                 <button
                   key={pty.id}
                   className={active ? "chip active" : "chip"}
-                  title={`${project} · ${label}${busy ? "（执行中）" : "（空闲）"}`}
+                  title={`${providerLabel(ptyProvider)} · ${project} · ${label}${busy ? "（执行中）" : "（空闲）"}`}
                   onClick={() => viewRunningPty(pty)}
                 >
                   <span className={busy ? "dot busy" : "dot idle"}>
                     {busy ? "●" : "○"}
                   </span>
                   <span className="chip-project">{project}</span>
+                  <span className="provider-badge">{providerLabel(ptyProvider)}</span>
                   <span className="chip-label">{label}</span>
                 </button>
               );
@@ -509,7 +544,7 @@ export default function App() {
             setLocateHit(null);
           }}
           onOpenHit={(h) => {
-            setSelectedId(h.session.id);
+            setSelectedId(sessionKey(h.session));
             setPtyViewId(null);
             locateSeqRef.current += 1;
             setLocateHit({ eventIndex: h.eventIndex, sequence: locateSeqRef.current });
@@ -557,7 +592,7 @@ export default function App() {
         <section className="content">
           {runningSelected && selected ? (
             <TerminalPane
-              key={selected.id}
+              key={sessionKey(selected)}
               session={selected}
               onPtyStateChange={refreshPtys}
             />
@@ -571,6 +606,7 @@ export default function App() {
             <>
               <div className="session-bar">
                 <span className="session-bar-title">
+                  <span className="provider-badge">{providerLabel(selected.provider)}</span>{" "}
                   {selected.title ?? "(无标题)"}
                 </span>
                 <button
@@ -581,7 +617,7 @@ export default function App() {
                 </button>
               </div>
               <TranscriptPane
-                key={selected.id}
+                key={sessionKey(selected)}
                 session={selected}
                 highlight={hits ? query.trim() : undefined}
                 locateEventIndex={locateHit?.eventIndex}
@@ -628,7 +664,7 @@ export default function App() {
             🔄 新版本 v{update.latest} 可用
           </button>
         )}
-        {sessions.length} 个会话 · {usingMock ? "mock 数据" : "provider: 已扫描"} ·{" "}
+        {sessions.length} 个会话 · {usingMock ? "mock 数据" : "本地 Agent"} ·{" "}
         {activePtys.filter((p) => busyIds.has(p.id)).length} 忙 /{" "}
         {activePtys.length} 跑
         {!isTauri && " · 浏览器模式"}

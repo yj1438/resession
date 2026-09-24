@@ -13,10 +13,17 @@ pub use provider::{ResumeSpec, ScanError, SearchHit, SessionProvider};
 
 /// 返回全部已启用的 provider。新增 agent 时在这里注册一行。
 pub fn registry() -> Vec<Box<dyn SessionProvider>> {
-    vec![Box::new(providers::claude::ClaudeProvider::default())]
+    vec![
+        Box::new(providers::claude::ClaudeProvider::default()),
+        Box::new(providers::codex::CodexProvider::default()),
+    ]
 }
 
 /// 应用级 claude 二进制路径覆盖（设置页写入；None = 恢复自动探测）
 pub fn set_claude_binary_override(path: Option<String>) {
     providers::claude::binary::set_override(path);
+}
+
+pub fn set_codex_binary_override(path: Option<String>) {
+    providers::codex::set_binary_override(path);
 }

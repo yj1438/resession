@@ -1,6 +1,6 @@
 [package]
 name = "resession"
-version = "0.3.2"
+version = "0.5.0"
 edition = "2024"
 description = "ReSession - lightweight native agent session manager"
 

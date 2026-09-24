@@ -89,6 +89,29 @@ body {
   color: var(--muted);
 }
 
+.provider-filter {
+  height: 30px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.provider-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
 .main {
   display: flex;
   flex: 1;
@@ -875,6 +898,28 @@ body.resizing-sidebar {
   padding: 0;
   max-height: 300px;
   overflow-y: auto;
+}
+
+.provider-choice {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.provider-choice-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.provider-choice-btn.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .np-list li {

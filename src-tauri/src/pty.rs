@@ -1,7 +1,7 @@
 //! PTY 会话管理：portable-pty 生命周期 + 前端事件桥。
 //!
 //! 原则（architecture.md 3.3）：不解析、不记录、不干预终端内容。
-//! 生命周期：PTY 以「会话 id」为键，claude 退出（读线程收割后移除句柄）
+//! 生命周期：PTY 以「provider:会话 id」为键，Agent 退出（读线程收割后移除句柄）
 //! 或用户显式关闭（close()）时从运行列表消失；
 //! UI 切换只断开观看，回来时回放缓冲区重新附着（支持并行多会话）。
 
@@ -54,7 +54,7 @@ struct PtyEvent {
     data: Vec<u8>,
 }
 
-/// 剥离宿主进程注入的 Claude 相关环境标记，并补齐 TUI 需要的颜色变量。
+/// 剥离宿主进程注入的 Claude/Codex 运行标记，并补齐 TUI 需要的颜色变量。
 /// 不剥离的话，从 Claude Code 会话里启动的 ReSession 会把标记传给 PTY 里的
 /// claude，被当作 child session **关闭转录保存**（jsonl 不再追加，会话丢失）。
 fn build_command(spec: &ResumeSpec) -> CommandBuilder {
@@ -67,7 +67,11 @@ fn build_command(spec: &ResumeSpec) -> CommandBuilder {
         let upper = name.to_uppercase();
         // CLAUDE*：child-session 标记会关闭转录保存；
         // CI / NO_COLOR：两者都会压掉 TUI 颜色
-        if upper.starts_with("CLAUDE") || upper == "CI" || upper == "NO_COLOR" {
+        if upper.starts_with("CLAUDE")
+            || (upper.starts_with("CODEX_") && upper != "CODEX_HOME")
+            || upper == "CI"
+            || upper == "NO_COLOR"
+        {
             continue;
         }
         cmd.env(&name, v);
@@ -236,15 +240,16 @@ fn normalize_dir(p: &str) -> String {
     }
 }
 
-/// 是否存在指定目录下存活的"新会话"合成 PTY——它的 claude 正在写该目录的
+/// 是否存在指定目录、指定 Provider 下存活的"新会话"合成 PTY——它可能正在写该目录的
 /// jsonl，此时删除/移动该会话文件属于未定义行为（删除守卫用）。
-pub fn has_live_new_at(map: &PtyMap, cwd: &str) -> bool {
+pub fn has_live_new_at(map: &PtyMap, cwd: &str, provider: &str) -> bool {
     let dir = normalize_dir(cwd);
     if dir.is_empty() {
         return false;
     }
+    let prefix = format!("new:{provider}:");
     map.0.lock().unwrap().iter().any(|(id, h)| {
-        id.starts_with("new:") && normalize_dir(&h.cwd) == dir
+        id.starts_with(&prefix) && normalize_dir(&h.cwd) == dir
     })
 }
 

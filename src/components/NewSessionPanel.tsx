@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke, isTauri } from "../api";
+import { PROVIDERS, type ProviderName } from "../providers";
 import { reportError } from "./Toasts";
 
 interface KnownProject {
@@ -23,11 +24,12 @@ export default function NewSessionPanel({
   onPick,
   onClose,
 }: {
-  onPick: (cwd: string) => void;
+  onPick: (cwd: string, provider: ProviderName) => void;
   onClose: () => void;
 }) {
   const [projects, setProjects] = useState<KnownProject[]>([]);
   const [manualPath, setManualPath] = useState("");
+  const [provider, setProvider] = useState<ProviderName>("claude");
 
   useEffect(() => {
     if (!isTauri) return;
@@ -38,16 +40,28 @@ export default function NewSessionPanel({
 
   const pickFolder = async () => {
     const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") onPick(dir);
+    if (typeof dir === "string") onPick(dir, provider);
   };
 
   return (
     <div className="np-backdrop" onClick={onClose}>
       <div className="np" onClick={(e) => e.stopPropagation()}>
-        <div className="np-head">新会话 · 在哪个目录启动原生 claude？</div>
+        <div className="np-head">新会话 · 选择 Agent 和工作目录</div>
+        <div className="provider-choice" role="group" aria-label="新会话 Agent">
+          {PROVIDERS.map((item) => (
+            <button
+              key={item.value}
+              className={provider === item.value ? "provider-choice-btn selected" : "provider-choice-btn"}
+              aria-pressed={provider === item.value}
+              onClick={() => setProvider(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         <ul className="np-list">
           {projects.map((p) => (
-            <li key={p.path} onClick={() => onPick(p.path)}>
+            <li key={p.path} onClick={() => onPick(p.path, provider)}>
               <span className="np-path">{p.path}</span>
               <span className="np-time">{relativeTime(p.lastActive)}</span>
             </li>
@@ -69,7 +83,7 @@ export default function NewSessionPanel({
             onChange={(e) => setManualPath(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && manualPath.trim()) {
-                onPick(manualPath.trim());
+                onPick(manualPath.trim(), provider);
               }
             }}
           />

@@ -5,37 +5,37 @@
 </p>
 
 <p align="center">
-  A lightweight, <strong>native</strong> Claude Code session manager — every session, every project, one thin shell.<br/>
+  A lightweight, <strong>native</strong> local agent session manager — Claude Code and Codex in one place.<br/>
   <a href="README.zh-CN.md">中文文档</a> · <a href="docs/">Docs (中文)</a>
 </p>
 
 ---
 
-Claude Code's `/resume` only shows sessions for the current project. ReSession fixes that: browse, search, replay and resume **all** of your sessions across **all** projects — and start new ones — without ever wrapping or reimplementing Claude Code.
+ReSession brings local Claude Code and Codex sessions into one browser and search view. Resuming runs the corresponding native CLI in a real terminal.
 
 ## Philosophy
 
-1. **Native sessions only** — ReSession reads `~/.claude/projects/*.jsonl` and resumes with a real `claude --resume <id>` inside a real terminal. No protocol proxying, no re-rendered TUI, no private session format.
+1. **Native sessions only** — ReSession reads Claude's `~/.claude/projects/` and Codex's `~/.codex/sessions/`, then resumes with the corresponding native CLI. No protocol proxying, no re-rendered TUI, no private session format.
 2. **Thin shell** — proven wheels only: Tauri 2 (≈10 MB portable exe), xterm.js, portable-pty.
-3. **Agent-agnostic core** — everything Claude-specific lives behind a `SessionProvider` trait; Codex etc. are future adapters, not rewrites.
+3. **Agent-agnostic core** — Claude and Codex each have a `SessionProvider` adapter for their own format and commands.
 
 ## Features
 
 - **Find** — every session across every project; fuzzy title search + full-text search over conversation content (debounced, cache-backed, highlighted)
 - **Replay** — read-only transcript rendering with markdown, code highlighting, collapsible tool calls and sidechain runs
-- **Resume** — one click opens an embedded terminal running the native `claude --resume`; full-color TUI, completely untouched
+- **Resume** — one click opens an embedded terminal running native `claude --resume` or `codex resume`
 - **Parallel** — PTYs live in the backend keyed by session; switch away and back without killing anything; busy/idle dots show what's working
-- **Start** — new sessions in any directory (known projects, folder picker, or manual path)
+- **Start** — choose Claude or Codex and start a session in any directory
 - **Rename** — non-destructive aliases stored in ReSession's own config; native `/rename` titles are recognized too
 - **Portable** — single ~10 MB exe, statically linked CRT; only runtime dependencies are OS-shipped (WebView2, system UCRT)
 
 ## Status
 
-Daily-driver quality on **Windows 10/11**. The architecture is written cross-platform (macOS/Linux branches in place, standard PTY paths) but **not yet verified on non-Windows machines**.
+Claude workflows have been used on Windows and macOS. Codex support is in development; native resume and packaged builds still need end-to-end validation. ReSession does not currently trash Codex's native session files.
 
 ## Install
 
-**Portable exe (recommended):** grab `resession.exe` from [Releases](../../releases), put it anywhere, double-click. Uninstall = delete the file (session data is never touched; ReSession only writes its own `~/.resession/settings.json`).
+**Portable exe (recommended):** grab `resession.exe` from [Releases](../../releases), put it anywhere, double-click. Browsing and searching native sessions are read-only; explicitly deleting a Claude session moves its file to the system trash. ReSession's settings and logs live in `~/.resession/`.
 
 **Build from source:**
 
@@ -51,7 +51,7 @@ Requires Node ≥ 20, Rust (MSVC toolchain on Windows) and the VS Build Tools C+
 ```bash
 npm run tauri dev     # full dev mode (vite + hot reload)
 npm run dev           # frontend only, in a browser, with mock data
-cargo test            # session-core + src-tauri, 17 tests incl. DTO contracts
+cargo test            # Rust core and Tauri tests, including DTO contracts
 ```
 
 ⚠️ A **debug** build expects the vite dev server (`tauri dev`); double-clicking it shows `ERR_CONNECTION_REFUSED`. Standalone use = release build. More pitfalls in [docs/build.md](docs/build.md).
@@ -64,7 +64,7 @@ Documentation is currently written in Chinese:
 |---|---|
 | [docs/design.md](docs/design.md) | Goals, non-goals, principles, UI layout |
 | [docs/architecture.md](docs/architecture.md) | Modules, `SessionProvider` trait, data flow, platform matrix, ConPTY field notes |
-| [docs/data-formats.md](docs/data-formats.md) | Observed Claude JSONL format, IR definition, Codex placeholder |
+| [docs/data-formats.md](docs/data-formats.md) | Observed Claude and Codex JSONL formats and the shared IR |
 | [docs/build.md](docs/build.md) | Build modes, prerequisites, pitfall log, artifact checklist |
 | [docs/roadmap.md](docs/roadmap.md) | Milestones and progress |
 

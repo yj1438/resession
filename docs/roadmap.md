@@ -1,7 +1,7 @@
 # ReSession Roadmap
 
-> 更新日期：2026-09-22
-> 当前基线：`main@35c6deb` / Latest Release `v0.3.2`
+> 更新日期：2026-09-24
+> 当前开发版本：`0.5.0`（M3 待 Rust 编译与原生恢复验收）；最近已发布版本：`v0.3.2`
 
 ## 产品定位
 
@@ -33,7 +33,7 @@ flowchart LR
 
 版本号是建议目标，不是发布承诺；每个阶段必须独立可验收。
 
-## 当前基线 — v0.3.2
+## 已发布基线 — v0.3.2
 
 已经具备：
 
@@ -81,27 +81,27 @@ flowchart LR
 
 ---
 
-## M3 — Codex Provider（建议 v0.5.0）
+## M3 — Codex Provider（开发版本 0.5.0，待验收）
 
 目标：证明 ReSession 的核心差异——一个入口管理多个原生 Agent 的本地历史。
 
 ### 数据与核心层
 
-- [ ] 实测并记录 `~/.codex/sessions/` 的真实格式；
-- [ ] 准备脱敏 fixture，覆盖普通消息、工具调用、分支和异常行；
-- [ ] 实现 Codex 会话扫描、标题提取、转录解析和全文搜索；
-- [ ] 实现 `codex resume <id>` 和新建 Codex 会话；
-- [ ] 为 Provider 增加能力声明，避免 UI 假设所有 Agent 能力完全相同；
-- [ ] 保持 PTY、转录和搜索 UI 只依赖统一接口与 IR。
+- [x] 实测并记录 `~/.codex/sessions/` 的真实格式，包含同 ID 多 rollout 分段；
+- [x] 准备合成脱敏 fixture，覆盖普通消息、工具调用、分支、坏行和分段；
+- [x] 实现 Codex 会话扫描、标题提取、分段回放和全文搜索；
+- [ ] 实现并实测 `codex resume <id>` 和新建 Codex 会话（命令及 PTY 已接线，发布产物实测待做）；
+- [x] 声明原生删除能力：Codex 索引独立维护，暂禁 ReSession 移入废纸篓；
+- [x] PTY、转录和搜索 UI 继续消费统一接口与 IR。
 
 ### 产品体验
 
-- [ ] 会话行和搜索结果显示 Provider 标识；
-- [ ] 增加“全部 / Claude / Codex”筛选；
-- [ ] 同一路径的 Claude、Codex 会话归入同一个项目节点；
-- [ ] 搜索结果跨 Provider 统一排序；
-- [ ] 设置页分别配置 Claude、Codex 可执行路径；
-- [ ] 新建会话时选择 Provider。
+- [x] 会话行和搜索结果显示 Provider 标识；
+- [x] 增加“全部 / Claude / Codex”筛选；
+- [x] 同一路径的 Claude、Codex 会话归入同一个项目节点；
+- [x] 搜索结果跨 Provider 统一排序；
+- [x] 设置页分别配置 Claude、Codex 可执行路径；
+- [x] 新建会话时选择 Provider。
 
 ### 验收标准
 

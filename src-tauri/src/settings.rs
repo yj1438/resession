@@ -1,4 +1,4 @@
-//! ReSession 自有配置（别名、claude 路径覆盖、忙闲阈值等）。
+//! ReSession 自有配置（别名、Agent 路径覆盖、忙闲阈值等）。
 //!
 //! 原则（design.md）：原生会话数据只读；用户在 ReSession 里的显式操作
 //! （改名、备注、设置）写自己的配置文件 `~/.resession/settings.json`，
@@ -25,6 +25,9 @@ pub struct Settings {
     /// claude 可执行路径覆盖（None = 自动探测）
     #[serde(default)]
     pub claude_path: Option<String>,
+    /// codex 可执行路径覆盖（None = 自动探测）
+    #[serde(default)]
+    pub codex_path: Option<String>,
     /// 忙闲判定阈值毫秒（输出静默超过视为空闲）
     #[serde(default = "default_busy_ms")]
     pub busy_ms: u64,
@@ -81,7 +84,7 @@ mod tests {
         let v = serde_json::to_value(&Settings::default()).unwrap();
         let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
         keys.sort();
-        assert_eq!(keys, ["aliases", "archived", "busyMs", "claudePath"]);
+        assert_eq!(keys, ["aliases", "archived", "busyMs", "claudePath", "codexPath"]);
         for k in &keys {
             assert!(!k.contains('_'), "DTO key `{k}` 含蛇形命名");
         }
@@ -89,6 +92,7 @@ mod tests {
         let s: Settings = serde_json::from_str("{}").unwrap();
         assert_eq!(s.busy_ms, 4000); // default_busy_ms 生效
         assert_eq!(s.claude_path, None);
+        assert_eq!(s.codex_path, None);
         assert!(s.aliases.is_empty());
         assert!(s.archived.is_empty());
     }

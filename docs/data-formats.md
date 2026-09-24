@@ -1,6 +1,6 @@
 # 会话数据格式笔记
 
-> 本文记录**实测观测**（2026-09-19，Claude Code 2.1.237，Windows），非官方文档。
+> 本文记录**实测观测**（Claude Code：2026-09-19 / Windows；Codex：2026-09-24 / macOS），非官方文档。
 > 格式是私有的、会演化的——解析必须宽容（见 design.md 风险表）。
 
 ## 1. Claude Code 会话存储
@@ -61,18 +61,19 @@ Rust 定义：`crates/session-core/src/ir.rs`；TS 镜像：`src/types.ts`。
 
 ```ts
 interface SessionMeta {
-  provider: "claude";        // 未来: "codex" | ...
+  provider: "claude" | "codex";
   id: string;                // UUID
   cwd: string | null;        // 权威项目路径
-  projectDir: string;        // ~/.claude/projects 下的编码目录名
+  projectDir: string;        // cwd 缺失时的项目展示兜底
   title: string | null;      // rename 标题 > summary > 首条用户消息
   createdAt: string | null;  // ISO8601
   modifiedAt: string | null;
+  gitBranch: string | null;
   messageCount: number;
   sourceFile: string;        // 绝对路径，load_transcript 的输入
 }
 
-interface Event  { role: "user"|"assistant"|"system"; timestamp: string|null; blocks: Block[] }
+interface Event  { role: "user"|"assistant"|"system"; timestamp: string|null; blocks: Block[]; sidechain: boolean }
 type   Block     = { kind:"text", text:string }
                  | { kind:"toolUse", name:string, brief:string }
                  | { kind:"toolResult", brief:string }
@@ -80,8 +81,20 @@ type   Block     = { kind:"text", text:string }
 
 演化规则：**只加不改**；前端对未知 block 降级为原始 JSON。
 
-## 3. Codex CLI（占位，接入 M3 时实测）
+## 3. Codex 本地会话（2026-09-24 实测）
 
-- 会话目录：`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`（待实测确认）
-- 恢复命令：`codex resume <SESSION-ID>` / `codex resume --last`
-- 接入 = 新增 `crates/session-core/src/providers/codex/`，实现同一 trait，UI 不动
+- 活跃会话目录：`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`；未设置 `CODEX_HOME` 时使用 `~/.codex/sessions/`。
+- 会话 ID 取首部 `session_meta.payload.id`，不从文件名反推（归档文件名可能含多个 UUID）。
+- 同一 ID 可能有多个 `rollout` 分段；后续文件带 `history_base`，只记录续写部分。扫描按 ID 合并，回放与搜索按分段时间串接，搜索下标加上前段事件数。
+- `SessionMeta.sourceFile` 指向最后一个活跃分段；读取转录时 Provider 会按 ID 找到并合并所有活跃分段。
+- 大于 1MB 的 rollout 在列表扫描时只读取开头元信息；该分段的 `messageCount` 暂记 0（表示未统计），所以整条会话的计数可能不完整。搜索和回放按需读取完整内容。
+- `session_meta.payload` 提供 `timestamp`、`cwd`、`git.branch`；后续 `turn_context.payload.cwd` 可能改变当前工作目录，取最后一次。
+- `$CODEX_HOME/session_index.jsonl`（默认 `~/.codex/session_index.jsonl`）的 `id` / `thread_name` 提供显示标题；未入索引时回退到首条用户文本。
+- `response_item.payload.type == "message"`：`role` 为 user/assistant；`content` 数组里 `input_text` / `output_text` 映射为 IR Text。
+- `response_item` 的 `function_call` / `custom_tool_call` 和对应 output 映射为工具块；`reasoning`、加密内容、图片及未知项不进入 IR。
+- `event_msg` 含与部分 `response_item` 重复的工具状态事件，不重复映射到转录。
+- 本阶段扫描活跃 `sessions/`。`archived_sessions/` 由 Codex 自身管理，暂不混入可恢复列表。
+- 原生恢复命令：`codex resume <SESSION-ID>`；新会话命令：`codex`。本机 `codex resume --all` 的选择器可列出 Codex Desktop 会话，但逐 ID 的 TUI 恢复仍需发布产物实测。
+- ReSession 对 Codex 原生 JSONL 只读；其标题索引独立维护，故暂不提供 ReSession 的“移入废纸篓”，可在 Codex 中删除。
+
+格式是私有实现细节，解析器按行跳过坏行及未知类型；测试 fixture 使用合成且脱敏的数据。

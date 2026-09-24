@@ -20,6 +20,18 @@ pub enum ScanError {
 pub trait SessionProvider: Send + Sync {
     fn name(&self) -> &'static str;
 
+    /// Whether moving a native session file to the system trash is safe for this provider.
+    /// Codex also maintains a separate session index, so its rollouts are read-only here.
+    fn can_trash_native(&self) -> bool {
+        false
+    }
+
+    /// Whether absence from this provider's active scan means a session was deleted.
+    /// Codex can move native sessions into archived_sessions, so absence is ambiguous.
+    fn can_prune_missing_metadata(&self) -> bool {
+        false
+    }
+
     /// 发现全部会话，按 modified_at 倒序。单文件失败应跳过而非整体失败。
     fn scan(&self) -> Result<Vec<SessionMeta>, ScanError>;
 
@@ -29,7 +41,7 @@ pub trait SessionProvider: Send + Sync {
     /// 构造"在会话原目录恢复该会话"的命令。
     fn resume_command(&self, meta: &SessionMeta) -> Result<ResumeSpec, ScanError>;
 
-    /// 构造"在指定目录启动全新会话"的命令（无参数，纯 `claude`）。
+    /// 构造"在指定目录启动全新会话"的原生 Agent 命令。
     fn new_session_command(&self, cwd: PathBuf) -> Result<ResumeSpec, ScanError>;
 
     /// 全文搜索对话正文（user/assistant 文本块，大小写不敏感；工具块不搜）。

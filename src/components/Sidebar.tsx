@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Highlight from "./Highlight";
 import { normalizePath, pathBaseName } from "../paths";
+import { providerCanTrash, providerLabel, ptySessionId } from "../providers";
 import type { SearchHit, SessionMeta } from "../types";
 
 interface Props {
@@ -43,7 +44,11 @@ function relativeTime(iso: string | null): string {
 
 function projectIdentity(session: SessionMeta): { key: string; path: string } {
   const path = session.cwd || session.projectDir;
-  return { key: `${session.provider}:${normalizePath(path)}`, path };
+  return { key: normalizePath(path), path };
+}
+
+function sessionKey(session: SessionMeta): string {
+  return ptySessionId(session.provider, session.id);
 }
 
 function groupSessions(sessions: SessionMeta[]): ProjectGroup[] {
@@ -116,7 +121,7 @@ export default function Sidebar({
       return;
     }
     const group = groupsRef.current.find((item) =>
-      item.sessions.some((session) => session.id === locateRequest.id),
+      item.sessions.some((session) => sessionKey(session) === locateRequest.id),
     );
     if (!group) return;
     handledLocateSequence.current = locateRequest.sequence;
@@ -144,16 +149,17 @@ export default function Sidebar({
         <ul className="hits">
           {hits.map((hit) => (
             <li
-              key={`${hit.session.id}:${hit.eventIndex}`}
+              key={`${sessionKey(hit.session)}:${hit.eventIndex}`}
               className={
-                hit.session.id === selectedId ? "session hit selected" : "session hit"
+                sessionKey(hit.session) === selectedId ? "session hit selected" : "session hit"
               }
               onClick={() => onOpenHit(hit)}
             >
               <div className="row">
                 <span className={`hit-role role-${hit.role}`}>
-                  {hit.role === "user" ? "你" : hit.role === "assistant" ? "Claude" : "系统"}
+                  {hit.role === "user" ? "你" : hit.role === "assistant" ? providerLabel(hit.session.provider) : "系统"}
                 </span>
+                <span className="provider-badge">{providerLabel(hit.session.provider)}</span>
                 <span className="project">{hit.session.title ?? "(无标题)"}</span>
                 {hit.sidechain && <span title="子 agent 消息">🤖</span>}
               </div>
@@ -169,7 +175,7 @@ export default function Sidebar({
         <div className="project-tree">
           {groups.map((group) => {
             const isCollapsed = collapsed.has(group.key);
-            const containsSelected = group.sessions.some((s) => s.id === selectedId);
+            const containsSelected = group.sessions.some((s) => sessionKey(s) === selectedId);
             return (
               <section
                 className={containsSelected ? "project-group has-selected" : "project-group"}
@@ -203,13 +209,15 @@ export default function Sidebar({
                     >
                       🗄
                     </button>
-                    <button
-                      className="row-btn"
-                      title="删除该项目全部会话（移入废纸篓）"
-                      onClick={() => onDelete(group.sessions)}
-                    >
-                      🗑
-                    </button>
+                    {group.sessions.every((session) => providerCanTrash(session.provider)) && (
+                      <button
+                        className="row-btn"
+                        title="删除该项目全部会话（移入废纸篓）"
+                        onClick={() => onDelete(group.sessions)}
+                      >
+                        🗑
+                      </button>
+                    )}
                   </span>
                   <span className="project-count">{group.sessions.length}</span>
                 </div>
@@ -217,24 +225,25 @@ export default function Sidebar({
                 {!isCollapsed && (
                   <ul>
                     {group.sessions.map((session) => {
-                      const running = activeIds.includes(session.id);
-                      const busy = busyIds.has(session.id);
-                      const isEditing = editing?.id === session.id;
-                      const isArchived = archivedIds.has(`${session.provider}:${session.id}`);
+                      const key = sessionKey(session);
+                      const running = activeIds.includes(key);
+                      const busy = busyIds.has(key);
+                      const isEditing = editing?.id === key;
+                      const isArchived = archivedIds.has(key);
                       return (
                         <li
-                          key={session.id}
+                          key={key}
                           ref={(node) => {
-                            if (node) sessionNodes.current.set(session.id, node);
-                            else sessionNodes.current.delete(session.id);
+                            if (node) sessionNodes.current.set(key, node);
+                            else sessionNodes.current.delete(key);
                           }}
                           className={[
-                            session.id === selectedId ? "session selected" : "session",
+                            key === selectedId ? "session selected" : "session",
                             isArchived ? "archived" : "",
                           ]
                             .filter(Boolean)
                             .join(" ")}
-                          onClick={() => onSelect(session.id)}
+                          onClick={() => onSelect(key)}
                         >
                           <div className="row session-title-row">
                             {isEditing ? (
@@ -244,7 +253,7 @@ export default function Sidebar({
                                 value={editing.value}
                                 onClick={(event) => event.stopPropagation()}
                                 onChange={(event) =>
-                                  setEditing({ id: session.id, value: event.target.value })
+                                  setEditing({ id: key, value: event.target.value })
                                 }
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
@@ -263,11 +272,12 @@ export default function Sidebar({
                                   title={`${session.title ?? "(无标题)"}\n双击重命名（不影响原生会话）`}
                                   onDoubleClick={(event) => {
                                     event.stopPropagation();
-                                    setEditing({ id: session.id, value: session.title ?? "" });
+                                    setEditing({ id: key, value: session.title ?? "" });
                                   }}
                                 >
                                   {session.title ?? "(无标题)"}
                                 </span>
+                                <span className="provider-badge">{providerLabel(session.provider)}</span>
                                 <span className="row-actions">
                                   {isArchived ? (
                                     <button
@@ -292,22 +302,24 @@ export default function Sidebar({
                                       🗄
                                     </button>
                                   )}
-                                  <button
-                                    className="row-btn"
-                                    title="删除（移入废纸篓）"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      onDelete([session]);
-                                    }}
-                                  >
-                                    🗑
-                                  </button>
+                                  {providerCanTrash(session.provider) && (
+                                    <button
+                                      className="row-btn"
+                                      title="删除（移入废纸篓）"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onDelete([session]);
+                                      }}
+                                    >
+                                      🗑
+                                    </button>
+                                  )}
                                   <button
                                     className="rename-btn"
                                     title="重命名"
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      setEditing({ id: session.id, value: session.title ?? "" });
+                                      setEditing({ id: key, value: session.title ?? "" });
                                     }}
                                   >
                                     ✎

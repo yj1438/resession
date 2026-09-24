@@ -23,12 +23,16 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     let mut all = Vec::new();
     let mut errors: Vec<String> = Vec::new();
     let mut ok_providers: HashSet<String> = HashSet::new();
+    let mut prunable_providers: HashSet<String> = HashSet::new();
     // 单 provider 失败不拖垮整体（与 design.md 的宽容原则一致）；
     // 但全部失败且零结果时向上抛——静默空列表会让用户误以为没有会话
     for p in registry() {
         match p.scan() {
             Ok(mut s) => {
                 ok_providers.insert(p.name().to_string());
+                if p.can_prune_missing_metadata() {
+                    prunable_providers.insert(p.name().to_string());
+                }
                 all.append(&mut s);
             }
             Err(e) => {
@@ -37,10 +41,10 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
             }
         }
     }
-    if all.is_empty() && !errors.is_empty() {
+    if ok_providers.is_empty() && !errors.is_empty() {
         return Err(format!("扫描会话失败：{}", errors.join("；")));
     }
-    prune_orphan_keys(&settings, &all, &ok_providers);
+    prune_orphan_keys(&settings, &all, &prunable_providers);
     // 别名覆盖：ReSession 别名 > 原生 /rename > summary > 首条消息
     for meta in &mut all {
         let key = format!("{}:{}", meta.provider, meta.id);
@@ -54,8 +58,8 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
 
 /// 清洗孤儿 key：会话文件被外部（终端/文件管理器）删除后，settings.json 里的
 /// 别名/归档键不再指向任何真实会话，随扫描顺带剔除。
-/// 只动「本次扫描成功的 provider」的 key——扫描失败的 provider 数据未卜，不碰。
-/// JSONL 宽容解析保证"文件在 ⇒ 扫得出"，因此不在 live 集合 ≈ 文件已不存在；
+/// 只动「本次扫描成功且缺失代表删除」的 provider 的 key。
+/// Codex 原生归档会把文件移出活跃目录，不能据此删掉用户别名。
 /// 洗不掉的极端情况（瞬时 IO 错误）代价只是用户重新设一次别名。
 fn prune_orphan_keys(
     settings: &SettingsState,
@@ -79,10 +83,14 @@ fn prune_orphan_keys(
 }
 
 #[tauri::command]
-fn load_transcript(meta: SessionMeta) -> Result<Vec<Event>, String> {
-    provider_for(&meta.provider)?
-        .load_transcript(&meta)
-        .map_err(|e| e.to_string())
+async fn load_transcript(meta: SessionMeta) -> Result<Vec<Event>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        provider_for(&meta.provider)?
+            .load_transcript(&meta)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// ReSession 别名（name 为空 = 清除别名，回落到原生标题）
@@ -109,11 +117,12 @@ fn get_settings(settings: State<SettingsState>) -> Settings {
     settings.0.lock().unwrap().clone()
 }
 
-/// 保存设置；claude 路径覆盖立即生效（影响后续 spawn），忙闲阈值由前端读取
+/// 保存设置；Agent 路径覆盖立即生效（影响后续 spawn），忙闲阈值由前端读取
 #[tauri::command]
 fn save_settings(
     settings: State<SettingsState>,
     claude_path: Option<String>,
+    codex_path: Option<String>,
     busy_ms: u64,
 ) -> Result<Settings, String> {
     let mut s = settings.0.lock().unwrap();
@@ -122,13 +131,19 @@ fn save_settings(
         .map(str::trim)
         .filter(|p| !p.is_empty())
         .map(str::to_string);
+    s.codex_path = codex_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(str::to_string);
     s.busy_ms = busy_ms.clamp(1000, 30000);
     s.save()?;
     session_core::set_claude_binary_override(s.claude_path.clone());
+    session_core::set_codex_binary_override(s.codex_path.clone());
     Ok(s.clone())
 }
 
-/// 删除单个别名（key 形如 "claude:<uuid>"）
+/// 删除单个别名（key 形如 "provider:<uuid>"）
 #[tauri::command]
 fn remove_alias(settings: State<SettingsState>, key: String) -> Result<(), String> {
     let mut s = settings.0.lock().unwrap();
@@ -136,7 +151,7 @@ fn remove_alias(settings: State<SettingsState>, key: String) -> Result<(), Strin
     s.save()
 }
 
-/// 归档/取消归档会话（keys 形如 "claude:<uuid>"，支持批量）。
+/// 归档/取消归档会话（keys 形如 "provider:<uuid>"，支持批量）。
 /// 只动 ReSession 配置层：原生 JSONL 保留，列表默认隐藏。
 #[tauri::command]
 fn set_archived(
@@ -168,15 +183,18 @@ fn delete_session(
     ptys: State<PtyMap>,
     meta: SessionMeta,
 ) -> Result<(), String> {
+    if !provider_for(&meta.provider)?.can_trash_native() {
+        return Err("Codex 原生会话请在 Codex 中删除；ReSession 暂不移动其索引文件".into());
+    }
     // 注意锁的粒度：contains_key 检查与 has_live_new_at 各自短暂拿锁，
     // 不能在持有 map 锁的情况下调用会再次拿锁的辅助函数（Mutex 不可重入 = 死锁）
-    if ptys.0.lock().unwrap().contains_key(&meta.id) {
+    if ptys.0.lock().unwrap().contains_key(&format!("{}:{}", meta.provider, meta.id)) {
         return Err("会话正在运行，请先关闭终端再删除".into());
     }
     // "新会话"合成 PTY 的键不是会话 id，但它的 claude 正在写这个会话的
     // jsonl（P0 守卫的同类场景）——按 cwd 匹配拦截
     if let Some(cwd) = meta.cwd.as_deref() {
-        if pty::has_live_new_at(&ptys, cwd) {
+        if pty::has_live_new_at(&ptys, cwd, &meta.provider) {
             return Err("该会话正由\"新会话\"终端创建中，请先关闭那个终端再删除".into());
         }
     }
@@ -310,37 +328,52 @@ fn reveal_settings_file() -> Result<String, String> {
 /// 全文搜索对话正文（v1 设计见 architecture.md 3.2b）。
 /// 结果按会话最近活跃排序，截断 50 条；标题套用别名。
 #[tauri::command]
-fn search_sessions(
+async fn search_sessions(
     query: String,
-    settings: State<SettingsState>,
+    settings: State<'_, SettingsState>,
 ) -> Result<Vec<SearchHit>, String> {
     let q = query.trim().to_string();
     if q.is_empty() {
         return Ok(vec![]);
     }
     let aliases = settings.0.lock().unwrap().aliases.clone();
-    let mut hits = Vec::new();
-    for p in registry() {
-        match p.search(&q) {
-            Ok(mut h) => hits.append(&mut h),
-            Err(e) => log::warn!("[{}] search failed: {e}", p.name()),
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut hits = Vec::new();
+        let mut ok_providers = 0usize;
+        let mut errors = Vec::new();
+        for p in registry() {
+            match p.search(&q) {
+                Ok(mut h) => {
+                    ok_providers += 1;
+                    hits.append(&mut h);
+                }
+                Err(e) => {
+                    log::warn!("[{}] search failed: {e}", p.name());
+                    errors.push(format!("{} 搜索失败: {e}", p.name()));
+                }
+            }
         }
-    }
-    for h in &mut hits {
-        let key = format!("{}:{}", h.session.provider, h.session.id);
-        if let Some(alias) = aliases.get(&key) {
-            h.session.title = Some(alias.clone());
+        if ok_providers == 0 && !errors.is_empty() {
+            return Err(errors.join("；"));
         }
-    }
-    hits.sort_by(|a, b| {
-        b.session
-            .modified_at
-            .cmp(&a.session.modified_at)
-            .then(a.session.id.cmp(&b.session.id))
-            .then(a.event_index.cmp(&b.event_index))
-    });
-    hits.truncate(50);
-    Ok(hits)
+        for h in &mut hits {
+            let key = format!("{}:{}", h.session.provider, h.session.id);
+            if let Some(alias) = aliases.get(&key) {
+                h.session.title = Some(alias.clone());
+            }
+        }
+        hits.sort_by(|a, b| {
+            b.session
+                .modified_at
+                .cmp(&a.session.modified_at)
+                .then(a.session.id.cmp(&b.session.id))
+                .then(a.event_index.cmp(&b.event_index))
+        });
+        hits.truncate(50);
+        Ok(hits)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// 为会话打开原生 PTY 并运行 provider 给出的 resume 命令，返回 PTY 会话 id。
@@ -351,15 +384,16 @@ fn resume_session(
     ptys: State<PtyMap>,
     meta: SessionMeta,
 ) -> Result<String, String> {
-    if ptys.0.lock().unwrap().contains_key(&meta.id) {
-        return Ok(meta.id.clone());
+    let pty_id = format!("{}:{}", meta.provider, meta.id);
+    if ptys.0.lock().unwrap().contains_key(&pty_id) {
+        return Ok(pty_id);
     }
     let spec = provider_for(&meta.provider)?
         .resume_command(&meta)
         .map_err(|e| e.to_string())?;
     // 初始 24x80，前端 xterm 挂载后立即上报真实尺寸
-    pty::spawn(&app, &ptys, meta.id.clone(), spec, 24, 80)?;
-    Ok(meta.id)
+    pty::spawn(&app, &ptys, pty_id.clone(), spec, 24, 80)?;
+    Ok(pty_id)
 }
 
 #[tauri::command]
@@ -400,10 +434,19 @@ struct KnownProject {
 #[tauri::command]
 fn known_projects() -> Result<Vec<KnownProject>, String> {
     let mut all = Vec::new();
+    let mut ok_providers = 0usize;
+    let mut errors = Vec::new();
     for p in registry() {
-        if let Ok(mut s) = p.scan() {
-            all.append(&mut s);
+        match p.scan() {
+            Ok(mut sessions) => {
+                ok_providers += 1;
+                all.append(&mut sessions);
+            }
+            Err(error) => errors.push(format!("{} 扫描失败: {error}", p.name())),
         }
+    }
+    if ok_providers == 0 && !errors.is_empty() {
+        return Err(errors.join("；"));
     }
     // cwd -> 最近 modified_at（ISO 字符串可直接比较）
     let mut latest: HashMap<String, String> = HashMap::new();
@@ -425,22 +468,23 @@ fn known_projects() -> Result<Vec<KnownProject>, String> {
     Ok(projects)
 }
 
-/// 在指定目录启动全新原生会话（裸 `claude`），PTY 用合成键 `new:<uuid>`；
-/// claude 启动后会写入 jsonl，下次扫描即出现在会话列表。
+/// 在指定目录启动指定原生 Agent；PTY 用合成键 `new:<provider>:<uuid>`；
+/// Agent 写入 jsonl 后，下次扫描即出现在会话列表。
 #[tauri::command]
 fn new_session(
     app: AppHandle,
     ptys: State<PtyMap>,
     cwd: String,
+    provider: String,
 ) -> Result<String, String> {
     let path = PathBuf::from(&cwd);
     if !path.is_dir() {
         return Err(format!("目录不存在: {cwd}"));
     }
-    let spec = provider_for("claude")?
+    let spec = provider_for(&provider)?
         .new_session_command(path)
         .map_err(|e| e.to_string())?;
-    let id = format!("new:{}", uuid::Uuid::new_v4());
+    let id = format!("new:{provider}:{}", uuid::Uuid::new_v4());
     pty::spawn(&app, &ptys, id.clone(), spec, 24, 80)?;
     Ok(id)
 }
@@ -496,6 +540,7 @@ mod tests {
 pub fn run() {
     let loaded = Settings::load();
     session_core::set_claude_binary_override(loaded.claude_path.clone());
+    session_core::set_codex_binary_override(loaded.codex_path.clone());
     let log_dir = Settings::logs_dir();
     if let Some(dir) = &log_dir {
         let _ = std::fs::create_dir_all(dir);

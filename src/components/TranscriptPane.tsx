@@ -13,6 +13,7 @@ import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import Highlight from "./Highlight";
 import { invoke, isTauri } from "../api";
+import { providerLabel } from "../providers";
 import type { Block, Event, SessionMeta } from "../types";
 
 // 助手的 text 块按 markdown 渲染；用户消息保持纯文本。
@@ -67,11 +68,13 @@ const EventView = memo(function EventView({
   index,
   dim,
   highlight,
+  assistantLabel,
 }: {
   event: Event;
   index?: number;
   dim?: boolean;
   highlight?: string;
+  assistantLabel: string;
 }) {
   return (
     <div
@@ -79,7 +82,7 @@ const EventView = memo(function EventView({
       data-event-index={index}
     >
       <span className={`evt-role role-${event.role}`}>
-        {event.role === "user" ? "你" : event.role === "assistant" ? "Claude" : "系统"}
+        {event.role === "user" ? "你" : event.role === "assistant" ? assistantLabel : "系统"}
       </span>
       <div className="evt-blocks">
         {event.blocks.map((b, j) => (
@@ -100,10 +103,12 @@ const SidechainRun = memo(function SidechainRun({
   events,
   highlight,
   locateEventIndex,
+  assistantLabel,
 }: {
   events: { index: number; event: Event }[];
   highlight?: string;
   locateEventIndex?: number;
+  assistantLabel: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -128,6 +133,7 @@ const SidechainRun = memo(function SidechainRun({
             index={e.index}
             dim
             highlight={highlight}
+            assistantLabel={assistantLabel}
           />
         ))}
     </div>
@@ -332,6 +338,7 @@ export default function TranscriptPane({
             event={item.event}
             index={item.index}
             highlight={highlight}
+            assistantLabel={providerLabel(session.provider)}
           />
         ) : (
           <SidechainRun
@@ -339,6 +346,7 @@ export default function TranscriptPane({
             events={item.events}
             highlight={highlight}
             locateEventIndex={locateEventIndex}
+            assistantLabel={providerLabel(session.provider)}
           />
         ),
       )}

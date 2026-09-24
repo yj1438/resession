@@ -23,7 +23,7 @@
 
 | 层 | 位置 | 依赖 | 说明 |
 |---|---|---|---|
-| 核心逻辑 | `crates/session-core` | 仅 serde/serde_json + std | 扫描、解析、IR、resume 命令构造。**不依赖 Tauri**，可独立测试 |
+| 核心逻辑 | `crates/session-core` | 仅 serde/serde_json + std | Claude、Codex 扫描、解析、IR、resume 命令构造。**不依赖 Tauri**，可独立测试 |
 | 壳/桥 | `src-tauri`（M1） | tauri 2, portable-pty, session-core | invoke 命令（scan/transcript/resume）、PTY 生命周期、事件推送 |
 | 界面 | `src/` | react, @xterm/xterm | 三区布局、转录渲染、xterm 终端 |
 
@@ -48,7 +48,7 @@ pub struct ResumeSpec {
 }
 ```
 
-纪律：**UI 层和 Tauri 命令层只认这个 trait**。新增 Codex = 新增一个 adapter 目录 + registry 注册一行。
+纪律：**UI 层和 Tauri 命令层只认这个 trait**。Claude 与 Codex 分别实现适配器；Codex 的同 ID 多 rollout 分段由适配器合并。
 
 ## 3. 数据流
 
@@ -86,7 +86,7 @@ pub struct ResumeSpec {
 ```
 用户点"终端"标签 → invoke resume
   → Provider.resume_command() → pty.rs 打开 portable-pty
-  → spawn(program, args, cwd)   ← 以会话 id 为键，幂等；已存在则直接附着
+  → spawn(program, args, cwd)   ← 以 provider:id 为键，幂等；已存在则直接附着
   → 双向桥：pty 输出(原始字节) → window.emit("pty-out") → xterm.write(Uint8Array)
             xterm.onData → invoke pty_write → pty 输入
   → resize 事件 → pty.resize(cols, rows)
