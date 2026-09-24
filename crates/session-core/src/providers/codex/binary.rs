@@ -57,6 +57,11 @@ pub fn find_binary() -> Option<PathBuf> {
     if let Some(path) = lookup_binary() {
         return Some(path);
     }
+    // Codex 桌面版自带 CLI（不在 PATH 上）；会话 rollout 也由它写入，
+    // 所以"有会话但找不到二进制"的机器多半装的是桌面版。
+    if let Some(path) = desktop_app_binary() {
+        return Some(path);
+    }
     let home = std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)?;
@@ -66,6 +71,44 @@ pub fn find_binary() -> Option<PathBuf> {
         candidates.push(PathBuf::from(appdata).join("npm").join("codex.cmd"));
     }
     candidates.into_iter().find(|path| path.is_file())
+}
+
+/// Codex 桌面版的内置 CLI 位于 `<base>/bin/<build-hash>/codex(.exe)`，
+/// build-hash 目录随 app 更新轮换——枚举后取修改时间最新的一个。
+/// Windows: `%LOCALAPPDATA%\OpenAI\Codex\bin`（本机实测）；
+/// macOS 桌面版路径未实测，按同构布局尝试，找不到就走设置页手动指定。
+fn desktop_app_binary() -> Option<PathBuf> {
+    let base = if cfg!(windows) {
+        std::env::var_os("LOCALAPPDATA")
+            .map(|l| PathBuf::from(l).join("OpenAI").join("Codex").join("bin"))
+    } else {
+        std::env::var_os("HOME").map(|h| {
+            PathBuf::from(h)
+                .join("Library")
+                .join("Application Support")
+                .join("Codex")
+                .join("bin")
+        })
+    }?;
+    let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
+    let mut versions: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(&base)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .map(|p| {
+            let modified = p
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            (modified, p)
+        })
+        .collect();
+    versions.sort_by_key(|(modified, _)| *modified);
+    versions
+        .pop()
+        .map(|(_, dir)| dir.join(exe))
+        .filter(|path| path.is_file())
 }
 
 fn spawn_wrapping(binary: PathBuf) -> (String, Vec<String>) {
@@ -86,7 +129,10 @@ fn spawn_wrapping(binary: PathBuf) -> (String, Vec<String>) {
 
 fn executable() -> Result<(String, Vec<String>), ScanError> {
     let binary = find_binary().ok_or_else(|| {
-        ScanError::RootMissing("codex binary not found on PATH or common locations".into())
+        ScanError::RootMissing(
+            "codex binary not found (PATH / common locations / Codex desktop app); 可在设置页手动指定"
+                .into(),
+        )
     })?;
     Ok(spawn_wrapping(binary))
 }
