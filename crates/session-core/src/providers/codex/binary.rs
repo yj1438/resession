@@ -105,10 +105,15 @@ fn desktop_app_binary() -> Option<PathBuf> {
         })
         .collect();
     versions.sort_by_key(|(modified, _)| *modified);
-    versions
-        .pop()
-        .map(|(_, dir)| dir.join(exe))
-        .filter(|path| path.is_file())
+    // 新到旧逐个尝试：最新版本目录可能只带工具（如 rg.exe）不带 CLI，
+    // 不能只看最新的一个。
+    while let Some((_, dir)) = versions.pop() {
+        let candidate = dir.join(exe);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 fn spawn_wrapping(binary: PathBuf) -> (String, Vec<String>) {
