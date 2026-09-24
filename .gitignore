@@ -5,3 +5,4 @@ src-tauri/gen/
 app-*.log
 *.local
 .DS_Store
+_patch_*.py
