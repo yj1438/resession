@@ -37,6 +37,16 @@ Claude workflows have been used on Windows and macOS. Codex support is in develo
 
 **Portable exe (recommended):** grab `resession.exe` from [Releases](../../releases), put it anywhere, double-click. Browsing and searching native sessions are read-only; explicitly deleting a Claude session moves its file to the system trash. ReSession's settings and logs live in `~/.resession/`.
 
+**macOS app:** download the macOS arm64 `.app.zip` from [Releases](../../releases) and extract `ReSession.app`. The current CI bundle is not Developer ID signed and notarized; its bundle signature also fails validation. A quarantined download may therefore show **“ReSession.app is damaged and can’t be opened. You should move it to the Trash.”** This does not by itself prove that the ZIP download is corrupt, but the warning must not be ignored for an untrusted copy.
+
+If you have verified that this exact app came from this project's release or CI artifact and accept the risk, the temporary workaround is to remove the quarantine attribute **only from that app** (replace the example path with its actual location):
+
+```bash
+xattr -dr com.apple.quarantine "/path/to/ReSession.app"
+```
+
+This does not repair the signature or notarize the app. Proper Developer ID signing and notarization are still required for normal macOS distribution; do not run the command on an app of uncertain origin or on the entire Downloads folder.
+
 **Build from source:**
 
 ```bash

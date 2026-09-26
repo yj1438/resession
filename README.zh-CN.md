@@ -37,6 +37,16 @@ Claude 功能已在 Windows/macOS 使用；Codex Provider 已进入开发分支�
 
 **绿色 exe（推荐）**：从 [Releases](../../releases) 下载 `resession.exe`，放哪都行，双击即用。浏览与搜索只读原生会话；显式删除 Claude 会话时会移入系统废纸篓。ReSession 自有设置和日志存于 `~/.resession/`。
 
+**macOS App**：从 [Releases](../../releases) 下载 macOS arm64 的 `.app.zip`，解压得到 `ReSession.app`。当前 CI 产物尚未完成 Developer ID 签名与公证，App 包的签名校验也未通过。带有下载隔离标记时，macOS 可能提示 **“ReSession.app 已损坏，无法打开。你应该将它移到废纸篓。”** 这不一定是 ZIP 下载损坏，但来源不明的副本不能忽略此警告。
+
+仅在确认**这一份 App**来自本项目的 Release 或 CI 产物、并接受风险后，才可临时移除它的隔离标记（将示例路径换成实际位置）：
+
+```bash
+xattr -dr com.apple.quarantine "/path/to/ReSession.app"
+```
+
+此操作不会修复签名，也不等于完成公证。面向普通用户正式分发仍需 Developer ID 签名和 Apple 公证；不要对来源不明的 App 或整个下载目录执行此命令。
+
 **源码构建**：
 
 ```bash
