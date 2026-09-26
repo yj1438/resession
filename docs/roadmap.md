@@ -66,7 +66,7 @@ flowchart LR
 - [x] 为扫描、搜索、恢复、新建、删除失败提供统一可见错误提示；
 - [ ] 验证归档、恢复、移入废纸篓的安全边界和失败回滚；
 - [x] 增加坏 JSONL、缺字段、目录失效、二进制不存在等测试；
-- [x] macOS GUI 环境修复：Homebrew/npm/版本管理器候选路径（platform::extra_bin_dirs）+ 登录 shell 环境解析（login_shell_path，探测与 PTY 环境基座双接入）；待 Mac 实机验收（docs/mac-verification.md）；
+- [x] macOS GUI 环境修复：Homebrew/npm/版本管理器候选路径（platform::extra_bin_dirs）+ 登录 shell 环境解析（login_shell_path，探测与 PTY 环境基座双接入）；Mac 实机验收通过（2026-09-26，含 Dock 启动 + 会话内 CLI 工具可用）；
 - [x] 对 100、500、1000 个会话记录冷启动、重扫和搜索耗时（examples/bench.rs，结果见 docs/benchmarks.md：1000 会话热扫 37ms / 冷扫 165ms / 热搜索 83ms，远低于阈值）；
 - [x] 大会话渲染实测（20k 事件）：手写窗口化渲染（IntersectionObserver 扩窗 + 滚动锚定 + memo），加载 8s→秒开、滚动卡顿消除，零新依赖；
 - [ ] 固化 Windows、macOS 发布产物的启动冒烟检查；
