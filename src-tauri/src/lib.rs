@@ -1,3 +1,4 @@
+mod bridge;
 mod pty;
 mod settings;
 
@@ -10,7 +11,7 @@ use tauri::{AppHandle, State};
 use pty::PtyMap;
 use settings::{Settings, SettingsState};
 
-fn provider_for(name: &str) -> Result<Box<dyn SessionProvider>, String> {
+pub(crate) fn provider_for(name: &str) -> Result<Box<dyn SessionProvider>, String> {
     registry()
         .into_iter()
         .find(|p| p.name() == name)
@@ -19,6 +20,11 @@ fn provider_for(name: &str) -> Result<Box<dyn SessionProvider>, String> {
 
 #[tauri::command]
 fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, String> {
+    scan_all_sessions(&settings)
+}
+
+/// 扫描聚合（命令与 bridge 共用）：别名覆盖、孤儿清洗、时间倒序
+pub(crate) fn scan_all_sessions(settings: &SettingsState) -> Result<Vec<SessionMeta>, String> {
     let aliases = settings.0.lock().unwrap().aliases.clone();
     let mut all = Vec::new();
     let mut errors: Vec<String> = Vec::new();
@@ -44,7 +50,7 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     if ok_providers.is_empty() && !errors.is_empty() {
         return Err(format!("扫描会话失败：{}", errors.join("；")));
     }
-    prune_orphan_keys(&settings, &all, &prunable_providers);
+    prune_orphan_keys(settings, &all, &prunable_providers);
     // 别名覆盖：ReSession 别名 > 原生 /rename > summary > 首条消息
     for meta in &mut all {
         let key = format!("{}:{}", meta.provider, meta.id);
@@ -597,6 +603,7 @@ pub fn run() {
         ])
         .setup(|app| {
             log::info!("ReSession v{} started", app.package_info().version);
+            bridge::start(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

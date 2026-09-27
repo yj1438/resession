@@ -295,6 +295,13 @@ pub fn snapshot(map: &PtyMap, id: &str) -> Result<PtySnapshot, String> {
         .ok_or_else(|| "pty not found".to_string())
 }
 
+/// 读取某 PTY 的最后输出时间与工作目录（bridge 忙闲守卫用）
+pub fn output_state(map: &PtyMap, id: &str) -> Option<(u64, String)> {
+    let m = map.0.lock().unwrap();
+    m.get(id)
+        .map(|h| (*h.last_output.lock().unwrap(), h.cwd.clone()))
+}
+
 /// 仍存活的 PTY 状态（含最后输出时间/工作目录，供忙闲感知与附着守卫）
 pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
     map.0.lock()
