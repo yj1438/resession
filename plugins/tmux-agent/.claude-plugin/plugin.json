@@ -1,0 +1,10 @@
+{
+  "name": "tmux-agent",
+  "version": "2.0.0",
+  "description": "通过 tmux 与本地 Claude Code、Codex 等 Agent CLI 会话协作",
+  "repository": "https://github.com/yj1438/resession",
+  "skills": "./skills/",
+  "author": {
+    "name": "CSO Frontend Team"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "tmux-agent",
+  "version": "2.0.0",
+  "description": "通过 tmux 与本地 Claude Code、Codex 等 Agent CLI 会话协作",
+  "skills": "./skills/",
+  "author": {
+    "name": "CSO Frontend Team"
+  },
+  "license": "MIT",
+  "interface": {
+    "displayName": "tmux Agent 协作",
+    "shortDescription": "通过统一 tmux 桥接与本地 Agent CLI 协作",
+    "category": "Coding"
+  }
+}
