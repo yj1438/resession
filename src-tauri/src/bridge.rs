@@ -84,10 +84,23 @@ fn run_server(app: AppHandle) {
 }
 
 /// 服务发现文件：skill 读它构造请求；不存在 = ReSession 未运行
+fn discovery_path() -> Option<std::path::PathBuf> {
+    crate::settings::Settings::path().map(|p| p.with_file_name("bridge.json"))
+}
+
+/// 退出时清除（陈旧文件会让 skill 拿到"文件在但连不上"的困惑状态）
+pub fn remove_discovery_file() {
+    if let Some(path) = discovery_path() {
+        match std::fs::remove_file(&path) {
+            Ok(()) => log::info!("[bridge] discovery file removed"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => log::warn!("[bridge] discovery remove failed: {e}"),
+        }
+    }
+}
+
 fn write_discovery(port: u16, token: &str) -> Result<(), String> {
-    let path = crate::settings::Settings::path()
-        .ok_or("no home directory")?
-        .with_file_name("bridge.json");
+    let path = discovery_path().ok_or("no home directory")?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

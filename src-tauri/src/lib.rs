@@ -606,6 +606,13 @@ pub fn run() {
             bridge::start(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 退出时清掉桥的服务发现文件：留着就是指向死端口的陈旧配置，
+            // skill 会拿到"文件在但连不上"的困惑状态（而非干净的"未运行"）
+            if let tauri::RunEvent::Exit = event {
+                bridge::remove_discovery_file();
+            }
+        });
 }
