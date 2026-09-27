@@ -93,7 +93,7 @@ export default function App() {
   const sidebarWidthRef = useRef(sidebarWidth);
   const locateSequenceRef = useRef(0);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  // 正在观看的合成 PTY（"新会话"，没有对应会话条目）
+  // 当前观看的 PTY；退出后仍保留终端输出，直到用户关闭或切换视图。
   const [ptyViewId, setPtyViewId] = useState<string | null>(null);
   // 转录滚动定位：来自搜索命中（sequence 递增，支持重复点击同一命中重新定位）
   const [locateHit, setLocateHit] = useState<{
@@ -267,13 +267,7 @@ export default function App() {
   );
 
   const selected = sessions.find((s) => sessionKey(s) === selectedId) ?? null;
-  // 视图优先级：选中会话的终端 > 正在观看的合成终端 > 转录态 > 空
-  const runningSelected = selected
-    ? activePtys.some((p) => p.id === sessionKey(selected))
-    : false;
-  const ptyAlive = ptyViewId
-    ? activePtys.some((p) => p.id === ptyViewId)
-    : false;
+  const terminalSession = selected && ptyViewId === sessionKey(selected) ? selected : null;
 
   // 忙闲阈值可由设置页调整；走 ref 让 memo 免于依赖链，2s tick 内生效
   const busyMsRef = useRef(4000);
@@ -313,7 +307,10 @@ export default function App() {
       return;
     }
     void invoke<string>("resume_session", { meta: s })
-      .then(() => refreshPtys())
+      .then((id) => {
+        setPtyViewId(id);
+        refreshPtys();
+      })
       .catch((e) => reportError("恢复会话失败", String(e)));
   };
 
@@ -422,7 +419,7 @@ export default function App() {
     setLocateHit(null);
     if (session) {
       setSelectedId(sessionKey(session));
-      setPtyViewId(null);
+      setPtyViewId(pty.id);
       locateSequenceRef.current += 1;
       setLocateRequest({ id: sessionKey(session), sequence: locateSequenceRef.current });
     } else {
@@ -540,7 +537,7 @@ export default function App() {
           archivedCount={archivedCount}
           onSelect={(id) => {
             setSelectedId(id);
-            setPtyViewId(null);
+            setPtyViewId(activePtys.some((p) => p.id === id) ? id : null);
             setLocateHit(null);
           }}
           onOpenHit={(h) => {
@@ -590,17 +587,13 @@ export default function App() {
         />
 
         <section className="content">
-          {runningSelected && selected ? (
-            <TerminalPane
-              key={sessionKey(selected)}
-              session={selected}
-              onPtyStateChange={refreshPtys}
-            />
-          ) : ptyAlive ? (
+          {ptyViewId ? (
             <TerminalPane
               key={ptyViewId}
-              attachPtyId={ptyViewId ?? undefined}
+              session={terminalSession ?? undefined}
+              attachPtyId={ptyViewId}
               onPtyStateChange={refreshPtys}
+              onCloseView={() => setPtyViewId(null)}
             />
           ) : selected ? (
             <>

@@ -5,7 +5,7 @@
 //! 或用户显式关闭（close()）时从运行列表消失；
 //! UI 切换只断开观看，回来时回放缓冲区重新附着（支持并行多会话）。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 
@@ -17,13 +17,14 @@ use session_core::ResumeSpec;
 
 /// 每个 PTY 保留的输出回放缓冲上限（字节）
 const BUFFER_CAP: usize = 512 * 1024;
+const FINISHED_SNAPSHOT_CAP: usize = 16;
 
 pub struct PtyHandle {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
     /// 原始字节缓冲：前端切走再切回时回放（字节级，避免多字节字符跨块损坏）
-    buffer: Arc<Mutex<Vec<u8>>>,
+    buffer: Arc<Mutex<OutputBuffer>>,
     /// 最后一次输出的 Unix 毫秒（忙闲感知信号：有输出=活跃）
     last_output: Arc<Mutex<u64>>,
     cwd: String,
@@ -46,12 +47,64 @@ fn now_ms() -> u64 {
 }
 
 #[derive(Default)]
-pub struct PtyMap(pub Mutex<HashMap<String, PtyHandle>>);
+pub struct PtyMap(
+    pub Mutex<HashMap<String, PtyHandle>>,
+    Mutex<VecDeque<(String, PtySnapshot)>>,
+);
+
+impl PtyMap {
+    fn remember_finished(&self, id: &str, mut snapshot: PtySnapshot) {
+        snapshot.exited = true;
+        let mut finished = self.1.lock().unwrap();
+        finished.retain(|(key, _)| key != id);
+        if finished.len() >= FINISHED_SNAPSHOT_CAP {
+            finished.pop_front();
+        }
+        finished.push_back((id.to_string(), snapshot));
+    }
+}
 
 #[derive(Serialize, Clone)]
 struct PtyEvent {
     id: String,
+    /// 本块首字节在 PTY 输出流中的绝对偏移，用于前端与快照去重。
+    offset: u64,
     data: Vec<u8>,
+}
+
+#[derive(Default)]
+struct OutputBuffer {
+    data: Vec<u8>,
+    /// 累计写入字节数；即下一块输出的起始偏移。
+    end_offset: u64,
+}
+
+impl OutputBuffer {
+    fn append(&mut self, data: &[u8]) -> u64 {
+        let offset = self.end_offset;
+        self.end_offset += data.len() as u64;
+        self.data.extend_from_slice(data);
+        if self.data.len() > BUFFER_CAP {
+            let drop = self.data.len() - BUFFER_CAP;
+            self.data.drain(..drop);
+        }
+        offset
+    }
+
+    fn snapshot(&self) -> PtySnapshot {
+        PtySnapshot {
+            offset: self.end_offset - self.data.len() as u64,
+            data: self.data.clone(),
+            exited: false,
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+pub struct PtySnapshot {
+    pub offset: u64,
+    pub data: Vec<u8>,
+    pub exited: bool,
 }
 
 /// 剥离宿主进程注入的 Claude/Codex 运行标记，并补齐 TUI 需要的颜色变量。
@@ -110,6 +163,7 @@ pub fn spawn(
     if map.0.lock().unwrap().contains_key(&id) {
         return Ok(());
     }
+    map.1.lock().unwrap().retain(|(key, _)| key != &id);
 
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -131,7 +185,7 @@ pub fn spawn(
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let buffer: Arc<Mutex<OutputBuffer>> = Arc::new(Mutex::new(OutputBuffer::default()));
     let last_output = Arc::new(Mutex::new(now_ms()));
     let cwd = spec.cwd.display().to_string();
 
@@ -157,20 +211,14 @@ pub fn spawn(
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    {
-                        let mut b = buffer.lock().unwrap();
-                        if b.len() + n > BUFFER_CAP {
-                            let drop = (b.len() + n - BUFFER_CAP).min(b.len());
-                            b.drain(..drop);
-                        }
-                        b.extend_from_slice(&buf[..n]);
-                    }
+                    let offset = buffer.lock().unwrap().append(&buf[..n]);
                     *last_output.lock().unwrap() = now_ms();
                     if app
                         .emit(
                             "pty-out",
                             PtyEvent {
                                 id: pty_id.clone(),
+                                offset,
                                 data: buf[..n].to_vec(),
                             },
                         )
@@ -182,12 +230,16 @@ pub fn spawn(
             }
         }
         let _ = child.lock().unwrap().wait();
+        // 先保留有限数量的最终输出快照：CLI 若在前端挂载前迅速退出，
+        // pty_snapshot 仍可找回真实错误，而不是只得到 "pty not found"。
+        let ptys = app.state::<PtyMap>();
+        ptys.remember_finished(&pty_id, buffer.lock().unwrap().snapshot());
         // 自然退出也要把句柄从运行列表移除（此前只有 close() 会删，
         // 退出的 PTY 会永远残留在 pty_list 里）。先删再广播，
         // 前端收到 pty-exit 刷新时列表已经干净。
         // 锁序说明：此处已释放 child 锁再取 map 锁，与 close() 的
         // map→child 顺序不会形成环路。
-        if let Some(h) = app.state::<PtyMap>().0.lock().unwrap().remove(&pty_id) {
+        if let Some(h) = ptys.0.lock().unwrap().remove(&pty_id) {
             drop(h); // master/缓冲随句柄释放，读端 EOF 生效
         }
         log::info!("pty exited: {}", pty_id);
@@ -195,6 +247,7 @@ pub fn spawn(
             "pty-exit",
             PtyEvent {
                 id: pty_id,
+                offset: 0,
                 data: Vec::new(),
             },
         );
@@ -221,11 +274,25 @@ pub fn resize(map: &PtyMap, id: &str, rows: u16, cols: u16) -> Result<(), String
         .map_err(|e| e.to_string())
 }
 
-/// 回放缓冲快照（原始字节，前端以 Uint8Array 写回 xterm）
-pub fn snapshot(map: &PtyMap, id: &str) -> Result<Vec<u8>, String> {
-    let m = map.0.lock().unwrap();
-    let h = m.get(id).ok_or_else(|| "pty not found".to_string())?;
-    Ok(h.buffer.lock().unwrap().clone())
+/// 回放缓冲快照：原始字节与起始偏移，用于和实时事件去重。
+pub fn snapshot(map: &PtyMap, id: &str) -> Result<PtySnapshot, String> {
+    let current = {
+        let running = map.0.lock().unwrap();
+        running
+            .get(id)
+            .map(|h| h.buffer.lock().unwrap().snapshot())
+    };
+    if let Some(current) = current {
+        return Ok(current);
+    }
+    map.1
+        .lock()
+        .unwrap()
+        .iter()
+        .rev()
+        .find(|(key, _)| key == id)
+        .map(|(_, snapshot)| snapshot.clone())
+        .ok_or_else(|| "pty not found".to_string())
 }
 
 /// 仍存活的 PTY 状态（含最后输出时间/工作目录，供忙闲感知与附着守卫）
@@ -279,6 +346,44 @@ pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn output_buffer_offsets_survive_truncation() {
+        let mut buffer = OutputBuffer::default();
+        assert_eq!(buffer.append(b"first"), 0);
+        assert_eq!(buffer.append(b"second"), 5);
+        let snapshot = buffer.snapshot();
+        assert_eq!(snapshot.offset, 0);
+        assert_eq!(snapshot.data.as_slice(), &b"firstsecond"[..]);
+
+        let oversized = vec![b'x'; BUFFER_CAP + 4];
+        assert_eq!(buffer.append(&oversized), 11);
+        let snapshot = buffer.snapshot();
+        assert_eq!(snapshot.offset, 15);
+        assert_eq!(snapshot.data.len(), BUFFER_CAP);
+        assert!(snapshot.data.iter().all(|byte| *byte == b'x'));
+        assert_eq!(buffer.append(b"end"), (BUFFER_CAP + 15) as u64);
+        let snapshot = buffer.snapshot();
+        assert_eq!(snapshot.offset, 18);
+        assert!(snapshot.data.ends_with(b"end"));
+    }
+
+    #[test]
+    fn finished_snapshot_preserves_fast_exit_output_and_is_bounded() {
+        let map = PtyMap::default();
+        let mut buffer = OutputBuffer::default();
+        buffer.append(b"configuration error\r\n");
+        map.remember_finished("quick", buffer.snapshot());
+        let result = snapshot(&map, "quick").unwrap();
+        assert_eq!(result.data.as_slice(), &b"configuration error\r\n"[..]);
+        assert!(result.exited);
+
+        for index in 0..FINISHED_SNAPSHOT_CAP {
+            map.remember_finished(&format!("later-{index}"), buffer.snapshot());
+        }
+        assert!(snapshot(&map, "quick").is_err());
+        assert!(snapshot(&map, "later-0").unwrap().exited);
+    }
 
     #[test]
     fn normalize_dir_matches_paths_ts_semantics() {

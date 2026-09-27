@@ -406,9 +406,9 @@ fn pty_resize(ptys: State<PtyMap>, id: String, rows: u16, cols: u16) -> Result<(
     pty::resize(&ptys, &id, rows, cols)
 }
 
-/// 回放缓冲（原始字节），用于切回会话时重建终端画面
+/// 回放缓冲、输出流偏移与退出状态，用于恢复首帧及快速退出后的诊断输出。
 #[tauri::command]
-fn pty_snapshot(ptys: State<PtyMap>, id: String) -> Result<Vec<u8>, String> {
+fn pty_snapshot(ptys: State<PtyMap>, id: String) -> Result<pty::PtySnapshot, String> {
     pty::snapshot(&ptys, &id)
 }
 

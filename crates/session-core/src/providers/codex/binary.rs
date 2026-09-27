@@ -85,11 +85,19 @@ pub fn find_binary() -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
-/// Codex 桌面版的内置 CLI 位于 `<base>/bin/<build-hash>/codex(.exe)`，
-/// build-hash 目录随 app 更新轮换——枚举后取修改时间最新的一个。
-/// Windows: `%LOCALAPPDATA%\OpenAI\Codex\bin`（本机实测）；
-/// macOS 桌面版路径未实测，按同构布局尝试，找不到就走设置页手动指定。
+/// 桌面版内置 CLI：macOS 先试 App bundle（实机验证过两种资源布局）；
+/// Windows 则在 `<base>/bin/<build-hash>/codex.exe` 中按新到旧查找。
 fn desktop_app_binary() -> Option<PathBuf> {
+    if cfg!(target_os = "macos") {
+        for apps_dir in macos_app_dirs() {
+            if let Some(path) = macos_app_candidates(&apps_dir)
+                .into_iter()
+                .find(|path| path.is_file())
+            {
+                return Some(path);
+            }
+        }
+    }
     let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
     for base in desktop_app_bases() {
         let mut versions: Vec<(std::time::SystemTime, PathBuf)> = match std::fs::read_dir(&base)
@@ -121,10 +129,28 @@ fn desktop_app_binary() -> Option<PathBuf> {
     None
 }
 
-/// Desktop CLI candidate roots. Windows layout verified on-device
-/// (%LOCALAPPDATA%/OpenAI/Codex/bin/<hash>/codex.exe); macOS layout is
-/// unverified, so both with/without OpenAI-segment candidates are probed
-/// until confirmed on a real Mac.
+fn macos_app_dirs() -> Vec<PathBuf> {
+    let mut dirs = vec![PathBuf::from("/Applications")];
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(PathBuf::from(home).join("Applications"));
+    }
+    dirs
+}
+
+fn macos_app_candidates(apps_dir: &Path) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for app_name in ["ChatGPT.app", "Codex.app"] {
+        let resources = apps_dir.join(app_name).join("Contents").join("Resources");
+        // 2026-09-27 实机：Codex CLI 的 bin/codex 是负责定位内置 Mach-O 的 shim。
+        candidates.push(resources.join("codex-cli/bin/codex"));
+        // 旧版实机布局；保留兼容，以免桌面 App 更新节奏不同。
+        candidates.push(resources.join("codex"));
+    }
+    candidates
+}
+
+/// Windows layout verified on-device (%LOCALAPPDATA%/OpenAI/Codex/bin/<hash>/codex.exe).
+/// Keep the earlier macOS support-directory guesses as a fallback for other builds.
 fn desktop_app_bases() -> Vec<PathBuf> {
     if cfg!(windows) {
         return std::env::var_os("LOCALAPPDATA")
@@ -189,6 +215,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn macos_desktop_app_candidates_cover_observed_layouts() {
+        let paths = macos_app_candidates(Path::new("/Applications"));
+        let chatgpt_resources = Path::new("/Applications")
+            .join("ChatGPT.app")
+            .join("Contents")
+            .join("Resources");
+        assert_eq!(
+            paths[0],
+            chatgpt_resources.join("codex-cli/bin/codex")
+        );
+        assert!(paths.contains(&chatgpt_resources.join("codex")));
+        assert!(paths.contains(
+            &Path::new("/Applications")
+                .join("Codex.app")
+                .join("Contents")
+                .join("Resources")
+                .join("codex-cli/bin/codex")
+        ));
+    }
+
+    #[test]
     fn explicit_override_builds_resume_command() {
         set_override(Some("/fake/codex".into()));
         let meta = SessionMeta {
@@ -223,4 +270,3 @@ mod tests {
         );
     }
 }
-
