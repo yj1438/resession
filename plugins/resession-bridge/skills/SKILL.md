@@ -1,6 +1,6 @@
 ---
 name: resession-bridge
-description: "[v0.1.0] 通过 ReSession 的本地桥（HTTP）把消息投递给另一个 Claude Code / Codex 会话，并回读其原生转录增量。用户以 trs、to claude、to codex 请求咨询、评审、实现、移交或查看目标会话时使用；不用于通用 HTTP 调试，不替代 tmux-agent。"
+description: "[v0.1.0] 通过 ReSession 的本地桥（HTTP）把消息投递给另一个 Claude Code / Codex 会话，并回读其原生转录增量。用户以 trs 请求跨会话咨询、评审、实现、移交或查看目标会话时使用（如 'trs 评审当前变更'、'trs to codex 实现X'）；不用于通用 HTTP 调试，不与 tmux-agent 共用触发词。"
 ---
 
 # resession-bridge：经 ReSession 桥的本地 Agent 协作
@@ -20,12 +20,15 @@ cat ~/.resession/bridge.json    # { "port": <N>, "token": "<uuid>" }
 
 ## 1. 路由与目标
 
-| 用户入口 | 目标 provider |
-| --- | --- |
-| `trs to claude <请求>` / `tcc <请求>` | `claude` |
-| `trs to codex <请求>` / `tcx <请求>` | `codex` |
+唯一入口是 `trs <请求>`；`to claude` / `to codex` 是**可选**的目标修饰，不是必需前缀：
 
-- 前缀明确选择接收方；未说明且上下文无法确定时询问，不猜测。
+```text
+trs 评审一下当前变更          ← 目标由上下文推断（如另一侧是 codex 会话则推 codex）
+trs to codex 按 XX 实现       ← 想指定目标时写 to <agent>
+```
+
+- 推断不了接收方且上下文无法确定时询问用户，不猜测。
+- `tcc`/`tcx` 属于 tmux-agent 的入口，本 skill 不响应这两个词（两插件可能同时安装）。
 - **目标会话必须已在 ReSession 列表中**。列表来自扫描缓存：
 
 ```bash
