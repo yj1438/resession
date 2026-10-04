@@ -378,6 +378,8 @@ fn etime_seconds(raw: &str) -> Option<u64> {
         .map(|p| p.trim().parse().ok())
         .collect();
     match parts.as_slice() {
+        // ps 对 1 分钟内的进程输出纯秒数（无冒号）
+        [Some(sec)] => Some(days * 86400 + sec),
         [Some(m), Some(sec)] => Some(days * 86400 + m * 60 + sec),
         [Some(h), Some(m), Some(sec)] => Some(days * 86400 + h * 3600 + m * 60 + sec),
         _ => None,
