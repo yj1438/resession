@@ -34,6 +34,10 @@ export interface Event {
 export interface PtyStatus {
   id: string;
   lastOutputMs: number;
+  /** 最后一次用户写入（区分打字回显与真实响应） */
+  lastWriteMs: number;
+  /** 存活 <60s 的子进程存在（工具调用特征） */
+  hasChildren: boolean;
   cwd: string;
 }
 

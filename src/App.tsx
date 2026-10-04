@@ -48,6 +48,8 @@ interface PtyEvent {
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 320;
+// 输出晚于末次写入该毫秒数才视为"真实响应"而非打字回显
+const ECHO_GRACE_MS = 1500;
 const MIN_SIDEBAR_WIDTH = 220;
 const SIDEBAR_WIDTH_KEY = "resession.sidebarWidth";
 
@@ -193,6 +195,14 @@ export default function App() {
       .catch((e) => reportError("获取运行状态失败", String(e)));
   }, []);
 
+  // 3s 轮询兜底：年轻子进程信号（hasChildren）只能靠重新 pty_list 获取，
+  // 事件驱动的刷新覆盖不了"静默工具调用开始/结束"的时刻
+  useEffect(() => {
+    if (!isTauri) return;
+    const t = setInterval(refreshPtys, 3000);
+    return () => clearInterval(t);
+  }, [refreshPtys]);
+
   useEffect(() => {
     refreshPtys();
     if (!isTauri) return;
@@ -274,16 +284,22 @@ export default function App() {
   busyMsRef.current = settings?.busyMs ?? 4000;
 
   const busyIds = useMemo(
-    () =>
-      new Set(
-        activePtys
-          .filter((p) => {
-            // ?? 0 兜底：字段缺失时不让 NaN 污染比较（宁可显示忙也别永远空闲）
-            const last = Math.max(p.lastOutputMs ?? 0, activityRef.current[p.id] ?? 0);
-            return Date.now() - last < busyMsRef.current;
-          })
-          .map((p) => p.id),
-      ),
+    () => {
+      const now = Date.now();
+      const busy = new Set<string>();
+      for (const p of activePtys) {
+        // 回显排除：终端回显总在用户写入后毫秒级到达；输出晚于写入
+        // ECHO_GRACE_MS 以上才算"真实响应"，否则在提示符上打字会被误判为执行中
+        const last = Math.max(p.lastOutputMs ?? 0, activityRef.current[p.id] ?? 0);
+        const afterEcho = last >= (p.lastWriteMs ?? 0) + ECHO_GRACE_MS;
+        // 年轻子进程（工具调用）比输出阈值更能代表真实执行：
+        // 静默长命令不会因为没输出而误判空闲
+        if (p.hasChildren || (afterEcho && now - last < busyMsRef.current)) {
+          busy.add(p.id);
+        }
+      }
+      return busy;
+    },
     // tick 参与：2s 脉冲让忙闲状态随时间推进
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activePtys, tick],

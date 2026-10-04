@@ -27,6 +27,8 @@ pub struct PtyHandle {
     buffer: Arc<Mutex<OutputBuffer>>,
     /// 最后一次输出的 Unix 毫秒（忙闲感知信号：有输出=活跃）
     last_output: Arc<Mutex<u64>>,
+    /// 最后一次用户写入的 Unix 毫秒（区分"打字回显"与"真实响应"）
+    last_write: Arc<Mutex<u64>>,
     cwd: String,
 }
 
@@ -35,6 +37,10 @@ pub struct PtyHandle {
 pub struct PtyStatus {
     pub id: String,
     pub last_output_ms: u64,
+    /// 最后一次用户写入（区分回显与响应）
+    pub last_write_ms: u64,
+    /// 是否存在存活 <60s 的子进程（工具调用特征；MCP 等常驻子进程不计）
+    pub has_children: bool,
     /// 工作目录（用于"同目录存活新会话 PTY"的附着守卫）
     pub cwd: String,
 }
@@ -187,6 +193,8 @@ pub fn spawn(
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let buffer: Arc<Mutex<OutputBuffer>> = Arc::new(Mutex::new(OutputBuffer::default()));
     let last_output = Arc::new(Mutex::new(now_ms()));
+    // 0 = 尚未写入：任何真实输出都晚于它
+    let last_write = Arc::new(Mutex::new(0u64));
     let cwd = spec.cwd.display().to_string();
 
     map.0.lock().unwrap().insert(
@@ -197,6 +205,7 @@ pub fn spawn(
             child: child.clone(),
             buffer: Arc::clone(&buffer),
             last_output: Arc::clone(&last_output),
+            last_write: Arc::clone(&last_write),
             cwd,
         },
     );
@@ -258,7 +267,9 @@ pub fn spawn(
 pub fn write(map: &PtyMap, id: &str, data: &str) -> Result<(), String> {
     let mut m = map.0.lock().unwrap();
     let h = m.get_mut(id).ok_or_else(|| "pty not found".to_string())?;
-    h.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())
+    h.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+    *h.last_write.lock().unwrap() = now_ms();
+    Ok(())
 }
 
 pub fn resize(map: &PtyMap, id: &str, rows: u16, cols: u16) -> Result<(), String> {
@@ -303,9 +314,74 @@ pub fn list(map: &PtyMap) -> Vec<PtyStatus> {
         .map(|(id, h)| PtyStatus {
             id: id.clone(),
             last_output_ms: *h.last_output.lock().unwrap(),
+            last_write_ms: *h.last_write.lock().unwrap(),
+            has_children: has_young_child(h.child.lock().unwrap().process_id()),
             cwd: h.cwd.clone(),
         })
         .collect()
+}
+
+/// 是否存在存活 <60s 的直接子进程——claude/codex 执行工具时派生的
+/// 子进程是年轻的；MCP server 等随会话常驻的子进程是老的，不构成
+/// "执行中"信号（否则空闲时永远误报忙）。
+fn has_young_child(pid: Option<u32>) -> bool {
+    let Some(pid) = pid else { return false };
+    // Windows 子进程枚举成本高，退回纯输出阈值判定
+    if cfg!(windows) {
+        return false;
+    }
+    let Ok(out) = std::process::Command::new("pgrep")
+        .arg("-P")
+        .arg(pid.to_string())
+        .output()
+    else {
+        return false;
+    };
+    if !out.status.success() || out.stdout.is_empty() {
+        return false;
+    }
+    // 限制检查数量：子进程多时（管道树）逐个 ps 太浪费
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .take(8)
+        .any(|child_pid| young_process(child_pid))
+}
+
+fn young_process(pid: &str) -> bool {
+    // etime（非 etimes）：macOS 与 Linux 都支持，格式 [[dd-]hh:]mm:ss
+    let Ok(out) = std::process::Command::new("ps")
+        .arg("-o")
+        .arg("etime=")
+        .arg("-p")
+        .arg(pid)
+        .output()
+    else {
+        return false;
+    };
+    if !out.status.success() {
+        return false;
+    }
+    etime_seconds(&String::from_utf8_lossy(&out.stdout))
+        .map(|secs| secs < 60)
+        .unwrap_or(false)
+}
+
+/// 解析 `ps -o etime=` 输出为秒（跨 macOS/Linux 格式差异）
+fn etime_seconds(raw: &str) -> Option<u64> {
+    let s = raw.trim();
+    let (days, rest) = match s.split_once('-') {
+        Some((d, r)) => (d.parse::<u64>().ok()?, r),
+        None => (0, s),
+    };
+    let parts: Vec<Option<u64>> = rest
+        .split(':')
+        .map(|p| p.trim().parse().ok())
+        .collect();
+    match parts.as_slice() {
+        [Some(m), Some(sec)] => Some(days * 86400 + m * 60 + sec),
+        [Some(h), Some(m), Some(sec)] => Some(days * 86400 + h * 3600 + m * 60 + sec),
+        _ => None,
+    }
 }
 
 /// 目录比较的归一化：Windows 与 macOS（APFS/HFS+ 默认不区分大小写）
@@ -404,13 +480,26 @@ mod tests {
         let s = PtyStatus {
             id: "x".into(),
             last_output_ms: 7,
+            last_write_ms: 3,
+            has_children: true,
             cwd: "C:\\".into(),
         };
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["lastOutputMs"], 7);
+        assert_eq!(v["lastWriteMs"], 3);
+        assert_eq!(v["hasChildren"], true);
         assert!(v.get("last_output_ms").is_none());
         for k in v.as_object().unwrap().keys() {
             assert!(!k.contains('_'), "DTO key `{k}` 含蛇形命名");
         }
+    }
+
+    #[test]
+    fn etime_seconds_parses_cross_platform_formats() {
+        assert_eq!(etime_seconds("42"), Some(42));
+        assert_eq!(etime_seconds(" 03:05 "), Some(185));
+        assert_eq!(etime_seconds("01:02:03"), Some(3723));
+        assert_eq!(etime_seconds("2-03:04:05"), Some(2 * 86400 + 3 * 3600 + 4 * 60 + 5));
+        assert_eq!(etime_seconds("junk"), None);
     }
 }
