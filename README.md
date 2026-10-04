@@ -26,12 +26,14 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 - **Resume** — one click opens an embedded terminal running native `claude --resume` or `codex resume`
 - **Parallel** — PTYs live in the backend keyed by session; switch away and back without killing anything; busy/idle dots show what's working
 - **Start** — choose Claude or Codex and start a session in any directory
+- **Organize** — sessions grouped by project in a collapsible tree; archive noisy sessions to hide them, or trash finished Claude sessions (system trash, recoverable)
+- **Filter by agent** — All / Claude / Codex views, with provider badges on session rows, running chips and search hits
 - **Rename** — non-destructive aliases stored in ReSession's own config; native `/rename` titles are recognized too
 - **Portable** — single ~10 MB exe, statically linked CRT; only runtime dependencies are OS-shipped (WebView2, system UCRT)
 
 ## Status
 
-Claude workflows have been used on Windows and macOS. Codex support is in development; native resume and packaged builds still need end-to-end validation. ReSession does not currently trash Codex's native session files.
+Claude and Codex are both shipped and used daily on Windows and macOS (v0.7.0). Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 
@@ -63,6 +65,8 @@ npm run tauri dev     # full dev mode (vite + hot reload)
 npm run dev           # frontend only, in a browser, with mock data
 cargo test            # Rust core and Tauri tests, including DTO contracts
 ```
+
+[plugins/tmux-agent](plugins/tmux-agent/) is a companion Claude/Codex plugin that bridges local agent CLIs into tmux sessions (with its own test suite), independent of the desktop app.
 
 ⚠️ A **debug** build expects the vite dev server (`tauri dev`); double-clicking it shows `ERR_CONNECTION_REFUSED`. Standalone use = release build. More pitfalls in [docs/build.md](docs/build.md).
 
