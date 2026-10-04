@@ -541,6 +541,9 @@ pub fn run() {
     let loaded = Settings::load();
     session_core::set_claude_binary_override(loaded.claude_path.clone());
     session_core::set_codex_binary_override(loaded.codex_path.clone());
+    // macOS GUI 启动 PATH 残缺：后台预热登录 shell 环境解析（最长 3s），
+    // 避免首次"恢复/新会话"在同步命令里卡住主线程。非 macOS 立即返回。
+    std::thread::spawn(session_core::platform::login_shell_path);
     let log_dir = Settings::logs_dir();
     if let Some(dir) = &log_dir {
         let _ = std::fs::create_dir_all(dir);

@@ -415,8 +415,12 @@ pub fn search_file(meta: &SessionMeta, query: &str) -> (Vec<SearchHit>, usize) {
             let pos = lower.find(&q)?;
             let start = lower[..pos].chars().count();
             let chars: Vec<char> = line.text.chars().collect();
-            let from = start.saturating_sub(SNIPPET_CHARS);
-            let to = (start + q.chars().count() + SNIPPET_CHARS).min(chars.len());
+            // start 在 lowercase 文本上统计：İ 类字符 1→N 扩张可能让 start
+            // 超过原文字符数，钳制保证 from <= to <= len（防切片 panic）
+            let from = start.saturating_sub(SNIPPET_CHARS).min(chars.len());
+            let to = (start + q.chars().count() + SNIPPET_CHARS)
+                .min(chars.len())
+                .max(from);
             let mut snippet = String::new();
             if from > 0 {
                 snippet.push('…');

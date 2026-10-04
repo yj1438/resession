@@ -338,8 +338,12 @@ pub fn search_file(meta: &SessionMeta, query: &str) -> Vec<SearchHit> {
         };
         let start = lower[..pos].chars().count();
         let chars: Vec<char> = line.text.chars().collect();
-        let s = start.saturating_sub(SNIPPET_CHARS);
-        let e = (start + q.chars().count() + SNIPPET_CHARS).min(chars.len());
+        // start 在 lowercase 文本上统计：İ 类字符 to_lowercase 1→N 扩张会让
+        // start 超过原文字符数，必须钳制保证 s <= e <= len（防切片 panic）
+        let s = start.saturating_sub(SNIPPET_CHARS).min(chars.len());
+        let e = (start + q.chars().count() + SNIPPET_CHARS)
+            .min(chars.len())
+            .max(s);
         let mut snippet = String::new();
         if s > 0 {
             snippet.push('…');
@@ -635,6 +639,29 @@ mod tests {
 
         let meta = scan_session_file(&file, "test-project").unwrap();
         assert_eq!(meta.title.as_deref(), Some("真正的首条消息"));
+
+        std::fs::remove_file(&file).unwrap();
+    }
+
+    #[test]
+    fn search_snippet_clamped_when_case_expansion_inflates_start() {
+        // 'İ'.to_lowercase() 扩张为 2 字符：80 个扩张字符后 lowercase 文本的
+        // 字符计数远超原文，曾经的 from/to 切片越过原文长度直接 panic。
+        let dir = std::env::temp_dir().join("resession-test-snippet-clamp");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("5n1p0000-0000-0000-0000-000000000000.jsonl");
+        let inflated: String = "İ".repeat(80);
+        let line = serde_json::json!({
+            "type": "user",
+            "message": { "content": format!("{inflated} find me here") },
+            "timestamp": "2026-09-24T00:00:00Z"
+        });
+        std::fs::write(&file, format!("{line}\n")).unwrap();
+
+        let meta = scan_session_file(&file, "proj").unwrap();
+        // 修复前此处 panic：chars[from..to] 越界
+        let hits = search_file(&meta, "find");
+        assert_eq!(hits.len(), 1);
 
         std::fs::remove_file(&file).unwrap();
     }
