@@ -49,6 +49,17 @@ CI（.github/workflows/build.yml）= session-core 测试 + src-tauri 测试 + `n
 - `Sidebar.tsx`：项目分组（key = provider + normalizePath(cwd||projectDir)）；搜索/点击定位走 `locateRequest{ id, sequence }` 显式请求 + `pendingLocateId` 布局效应滚动，15s 重扫不会重置折叠或滚动位置。
 - 前端节奏：15s 重扫 sessions、3s 轮询 pty_list、2s tick 驱动忙闲重算——改任何"实时状态"逻辑先想清楚落在哪个节拍上。
 
+## 发版流程（vX.Y.Z）
+
+版本语义按 semver：feat → 次版本，fix → 修订号。全程两处需要用户确认：commit 入库前、每次 push 前。
+
+1. **质量检查**：本地 `npx tsc --noEmit && npm run build`；有 Rust 环境时两个目录各跑 `cargo test`。本机没有 Rust 时，先把 main 推上去等 build workflow 绿——**CI 绿是打 tag 的硬前置**，tag 会直接触发 Release 产物。
+2. **版本号四处对齐**：`package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`crates/session-core/Cargo.toml`，并同步两个 `Cargo.lock`（src-tauri 与 crates/session-core 各一个）。这是历史漂移重灾区，tag 前逐一核对。
+3. **CHANGELOG 起草 + README 与文档检查**：在 `CHANGELOG.md` 的 `Unreleased` 段写好本版要点（随发版 commit 入库）；EN/ZH 两份 README **对称**更新（功能清单、「当前状态」、安装说明、`resession.png` 是否反映当前 UI）；`docs/roadmap.md` 顶部的「当前开发版本 / 最近发布版本」行（第二个漂移重灾区）；顺手清理工作区里的临时文件（`_patch_*.py`、`app-icon copy.png` 之类），别让它们混进发版 commit。
+4. **commit + push（两步推送）**：发版 commit 入库 → push main → 等 CI 绿 → 再单独 `git push origin vX.Y.Z`。**不要 main 和 tag 一起推**：tag 先于 CI 结果会放出未经验证的 Release。
+5. **跟踪 Actions**：`gh` 可用则 `gh run watch`；否则用 GitHub API 轮询（匿名有限流，脚本变量名避开 `status` 这类 zsh 保留字）。
+6. **Release 验证**：把 `CHANGELOG.md` 对应段落贴进 Release notes 头部（`generate_release_notes` 的 compare 链接会自动附在尾部）；产物齐全（windows-x64.exe / macos-arm64 / .app.zip）、Release notes 正确；最好下载实际启动冒烟一遍。产物有问题时删除远端 tag 修复后重推（`git push origin :refs/tags/vX.Y.Z`），或放弃该版本号顺延。
+
 ## 测试惯例
 
 - 契约测试优先：DTO key 必须 camelCase（`settings.rs` / `pty.rs` / `dto_contracts.rs` 各有断言）。
