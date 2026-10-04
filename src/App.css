@@ -1262,3 +1262,25 @@ mark {
 .toast-close:hover {
   color: var(--text);
 }
+
+/* 项目树顶部工具行：全部收拢/展开 */
+.tree-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: #0d141c;
+}
+
+.tree-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.tree-toggle:hover {
+  color: var(--accent);
+}
