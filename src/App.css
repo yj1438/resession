@@ -650,6 +650,13 @@ body.resizing-sidebar {
   background: #0d141b;
 }
 
+.term-hint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: help;
+}
+
 .term-close {
   border: 1px solid var(--border);
   border-radius: 4px;
