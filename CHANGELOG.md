@@ -3,6 +3,10 @@
 所有显著变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)；
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。发版时把对应段落贴进 GitHub Release notes 头部。
 
+## v0.7.1 — 2026-10-05
+
+- **修复**：claude/codex 的 TUI 接管鼠标后终端无法拖选复制——终端栏新增「⇧ 拖选可复制」提示，并显式兜底 Cmd+C 复制选中内容（无选中时仍正常发送 ^C）
+
 ## v0.7.0 — 2026-10-04
 
 - **新增**：会话树「全部收拢 / 展开全部」按钮
