@@ -2630,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "resession"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "log",
  "portable-pty",
@@ -2958,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "session-core"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "serde",
  "serde_json",

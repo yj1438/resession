@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 /// Binary dirs invisible to GUI processes on macOS (most common first).
@@ -68,24 +68,40 @@ fn compute_login_shell_env() -> Option<HashMap<String, String>> {
     // -i makes zsh read .zshrc (where macOS users usually add PATH);
     // -l makes it read .zprofile. env -0 is NUL-delimited so rc-file stdout
     // noise without '=' is dropped during parsing.
-    let mut child = Command::new(&shell)
+    let child = Command::new(&shell)
         .args(["-ilc", "command env -0"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .ok()?;
-    let stdout = child.stdout.take()?;
-    // std has no wait-with-timeout: reader thread + channel, kill after 3s
-    // (defends against rc files that hang the login shell)
+    // Arc 共享给读线程；超时路径需要从本线程 kill 掉挂起的登录 shell
+    let child = Arc::new(Mutex::new(child));
+    let reader_child = Arc::clone(&child);
+    // std has no wait-with-timeout: reader thread + channel
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut buf = String::new();
-        let _ = std::io::BufReader::new(stdout).read_to_string(&mut buf);
-        let _ = child.wait();
+        {
+            let mut guard = reader_child.lock().unwrap();
+            if let Some(stdout) = guard.stdout.take() {
+                let _ = std::io::BufReader::new(stdout).read_to_string(&mut buf);
+            }
+        }
+        let _ = reader_child.lock().unwrap().wait();
         let _ = tx.send(buf);
     });
-    let output = rx.recv_timeout(Duration::from_secs(3)).ok()?;
+    // rc 文件挂起（如 exec tmux attach）时杀掉 shell——否则进程和读线程
+    // 泄漏到 app 退出。本次按失败处理并进入缓存（刻意不重试：rc 每次都
+    // 挂起的用户重试只会重复白等；启动预热已把首次解析挪到后台）。
+    let output = match rx.recv_timeout(Duration::from_secs(3)) {
+        Ok(output) => output,
+        Err(_) => {
+            let _ = child.lock().unwrap().kill();
+            let _ = child.lock().unwrap().wait();
+            return None;
+        }
+    };
     let env = parse_env_null(&output);
     // If rc noise polluted stdout beyond parsing, prefer no env over a
     // crippled one.

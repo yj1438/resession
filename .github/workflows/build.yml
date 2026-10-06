@@ -8,6 +8,12 @@ on:
     branches: [main]
     tags: ["v*"]
 
+# 同一 ref（分支/标签）重复触发时取消前一个：防止 annotated tag 偶发
+# 双触发烧双倍 CI；main 连续推送时也让旧 run 让位（最新代码才值得跑）
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write # 发版需要创建 Release
 

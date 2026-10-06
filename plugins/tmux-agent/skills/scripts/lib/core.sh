@@ -171,7 +171,10 @@ new_session_uuid() {
 require_target_session_contract() {
   local target=$1
   local session root actual_root expected
-  session=$(tmux display-message -p -t "$target" '#{session_name}')
+  session=$(tmux display-message -p -t "$target" '#{session_name}') || {
+    printf 'refusing target %s: it disappeared during lookup\n' "$target" >&2
+    exit 1
+  }
   require_managed_session "$session"
   require_session_permission_mode "$session"
   adapter_validate_session "$session"
@@ -193,7 +196,10 @@ require_target_session_contract() {
 require_agent_pane() {
   local target=$1
   local command
-  command=$(tmux display-message -p -t "$target" '#{pane_current_command}')
+  command=$(tmux display-message -p -t "$target" '#{pane_current_command}') || {
+    printf 'refusing target %s: it disappeared during lookup\n' "$target" >&2
+    exit 1
+  }
   if ! adapter_is_process "$command"; then
     printf 'Refusing to send: target %s is running %s, not a recognized %s process\n' \
       "$target" "$command" "$ADAPTER_CLI" >&2
@@ -375,10 +381,17 @@ cmd_send() {
   require_target "$target"
   require_agent_pane "$target"
   require_target_session_contract "$target"
-  pane=$(tmux display-message -p -t "$target" '#{pane_id}')
+  pane=$(tmux display-message -p -t "$target" '#{pane_id}') || {
+    printf 'refusing target %s: it disappeared during lookup\n' "$target" >&2
+    exit 1
+  }
 
   if (($# > 0)); then
     message=$*
+  elif [[ -t 0 ]]; then
+    # 无参数且 stdin 是终端：cat 会一直挂起等待输入，直接拒绝并说明用法
+    printf 'send: no message given (pass as arguments or pipe stdin)\n' >&2
+    exit 1
   else
     message=$(cat)
   fi

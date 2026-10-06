@@ -74,6 +74,26 @@ export default function TerminalPane({
     term.open(host);
     fit.fit();
 
+    // claude/codex 的 TUI 会开启鼠标上报接管鼠标事件，Shift+拖选是 xterm
+    // 的本地选择逃生门。这里显式兜底 Cmd+C：有选中内容时复制，
+    // 无选中则放行默认（透传 ^C 发送 SIGINT）。
+    term.attachCustomKeyEventHandler((event) => {
+      if (
+        event.type === "keydown" &&
+        event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        (event.key === "c" || event.key === "C")
+      ) {
+        const selection = term.getSelection();
+        if (selection) {
+          navigator.clipboard?.writeText(selection).catch(() => {});
+          return false;
+        }
+      }
+      return true;
+    });
+
     const ro = new ResizeObserver(() => fit.fit());
     ro.observe(host);
 
@@ -200,6 +220,12 @@ export default function TerminalPane({
           {session
             ? `原生 PTY · ${session.provider} resume ${session.id.slice(0, 8)}…`
             : `新会话 · 原生 ${providerLabel(attachPtyId?.split(":")[1] ?? "claude")}`}
+        </span>
+        <span
+          className="term-hint"
+          title="鼠标已被 TUI 接管：按住 Shift 拖选文本，Cmd+C 复制"
+        >
+          ⇧ 拖选可复制
         </span>
         <button className="term-close" onClick={closePty}>
           ⏹ 关闭终端

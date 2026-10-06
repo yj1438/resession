@@ -290,4 +290,34 @@ mod tests {
         assert_eq!(later[0].event_index, 4);
         fs::remove_dir_all(base).unwrap();
     }
+
+    #[test]
+    fn search_snippet_clamped_when_case_expansion_inflates_start() {
+        // 'İ'.to_lowercase() 扩张为 2 字符：80 个扩张字符后 start 超过原文
+        // 字符数，曾经的 chars[from..to] 切片直接 panic。
+        let base = std::env::temp_dir().join(format!("resession-codex-clamp-{}", std::process::id()));
+        let root = base.join("sessions");
+        let dated = root.join("2026").join("09").join("24");
+        fs::create_dir_all(&dated).unwrap();
+        let path = dated.join(format!("rollout-2026-09-24T00-00-00-{ID}.jsonl"));
+        let inflated: String = "İ".repeat(80);
+        fs::write(
+            &path,
+            jsonl(&[
+                json!({"timestamp":"2026-09-24T00:00:00Z","type":"session_meta",
+                    "payload":{"id":ID,"timestamp":"2026-09-24T00:00:00Z","cwd":"/tmp/project"}}),
+                json!({"timestamp":"2026-09-24T00:00:01Z","type":"response_item",
+                    "payload":{"type":"message","role":"user",
+                        "content":[{"type":"input_text","text":format!("{inflated} find me here")}]}}),
+            ]),
+        )
+        .unwrap();
+
+        let provider = CodexProvider::with_root(root);
+        assert_eq!(provider.scan().unwrap().len(), 1);
+        // 修复前此处 panic：越界切片
+        let hits = provider.search("find").unwrap();
+        assert_eq!(hits.len(), 1);
+        fs::remove_dir_all(base).unwrap();
+    }
 }

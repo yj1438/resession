@@ -108,6 +108,9 @@ export default function Sidebar({
   const sessionNodes = useRef(new Map<string, HTMLLIElement>());
   const handledLocateSequence = useRef(0);
   const groups = useMemo(() => groupSessions(sessions), [sessions]);
+  // 全部收拢判定：驱动树顶「收拢/展开全部」按钮的状态切换
+  const allCollapsed =
+    groups.length > 0 && groups.every((group) => collapsed.has(group.key));
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
 
@@ -173,6 +176,23 @@ export default function Sidebar({
       ) : (
         <>
         <div className="project-tree">
+          {groups.length > 0 && (
+            <div className="tree-toolbar">
+              <button
+                className="tree-toggle"
+                title={allCollapsed ? "展开全部项目" : "收拢全部项目"}
+                onClick={() =>
+                  setCollapsed(() =>
+                    allCollapsed
+                      ? new Set<string>()
+                      : new Set(groups.map((group) => group.key)),
+                  )
+                }
+              >
+                {allCollapsed ? "▾ 展开全部" : "▸ 收拢全部"}
+              </button>
+            </div>
+          )}
           {groups.map((group) => {
             const isCollapsed = collapsed.has(group.key);
             const containsSelected = group.sessions.some((s) => sessionKey(s) === selectedId);
