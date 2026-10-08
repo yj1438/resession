@@ -1,7 +1,8 @@
 # ReSession Roadmap
 
-> 更新日期：2026-10-05
-> 最近发布版本：`v0.7.1`（此前 `v0.7.0`，M3 Codex Provider 已随 v0.5.0 发布）
+> 更新日期：2026-10-08
+> 当前开发版本：`v0.7.2`
+> 最近发布版本：`v0.7.2`（此前 `v0.7.1`，M3 Codex Provider 已随 v0.5.0 发布）
 
 ## 产品定位
 
@@ -67,6 +68,7 @@ flowchart LR
 - [ ] 验证归档、恢复、移入废纸篓的安全边界和失败回滚；
 - [x] 增加坏 JSONL、缺字段、目录失效、二进制不存在等测试；
 - [x] macOS GUI 环境修复：Homebrew/npm/版本管理器候选路径（platform::extra_bin_dirs）+ 登录 shell 环境解析（login_shell_path，探测与 PTY 环境基座双接入）；Mac 实机验收通过（2026-09-26，含 Dock 启动 + 会话内 CLI 工具可用）；
+- [x] 修正 macOS TUI 鼠标接管下的本地选区：开启 Option 拖选，增加复制按钮和剪贴板失败反馈（源码构建通过，新 App 实机验收待做）；
 - [x] 对 100、500、1000 个会话记录冷启动、重扫和搜索耗时（examples/bench.rs，结果见 docs/benchmarks.md：1000 会话热扫 37ms / 冷扫 165ms / 热搜索 83ms，远低于阈值）；
 - [x] 大会话渲染实测（20k 事件）：手写窗口化渲染（IntersectionObserver 扩窗 + 滚动锚定 + memo），加载 8s→秒开、滚动卡顿消除，零新依赖；
 - [ ] 固化 Windows、macOS 发布产物的启动冒烟检查；

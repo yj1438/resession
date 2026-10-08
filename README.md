@@ -24,6 +24,7 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 - **Find** — every session across every project; fuzzy title search + full-text search over conversation content (debounced, cache-backed, highlighted)
 - **Replay** — read-only transcript rendering with markdown, code highlighting, collapsible tool calls and sidechain runs
 - **Resume** — one click opens an embedded terminal running native `claude --resume` or `codex resume`
+- **Copy terminal text** — hold Option on macOS or Shift on Windows/Linux to select under mouse-reporting TUIs, then use the copy button or Cmd+C / Ctrl+Shift+C
 - **Parallel** — PTYs live in the backend keyed by session; switch away and back without killing anything; busy/idle dots show what's working
 - **Start** — choose Claude or Codex and start a session in any directory
 - **Organize** — sessions grouped by project in a collapsible tree; archive noisy sessions to hide them, or trash finished Claude sessions (system trash, recoverable)
@@ -33,7 +34,7 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 
 ## Status
 
-Claude and Codex are both shipped and used daily on Windows and macOS (v0.7.1). Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
+Claude and Codex are both shipped and used daily on Windows and macOS. Version v0.7.2 corrects macOS terminal selection and adds explicit copy feedback. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 

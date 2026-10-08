@@ -657,6 +657,7 @@ body.resizing-sidebar {
   cursor: help;
 }
 
+.term-copy,
 .term-close {
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -665,6 +666,19 @@ body.resizing-sidebar {
   font-size: 12px;
   padding: 2px 8px;
   cursor: pointer;
+}
+
+.term-copy:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.term-copy-feedback {
+  color: var(--dim);
+  font-size: 11px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .term-close:hover {

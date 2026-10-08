@@ -38,6 +38,8 @@ done
 
 ## 2. 新产物功能验证
 
+- [ ] 在 Claude/Codex TUI 中按住 Option（⌥）拖选，出现选区；Cmd+C 和“复制选中内容”按钮都可复制到外部文本编辑器，中文与多行内容完整；粘贴仍可用，Ctrl+C 保留终端中断行为。
+
 - [ ] 从 Finder/Dock 启动（不要从终端启动，以免终端 PATH 掩盖 GUI 环境问题）。
 - [ ] 列表出现本机 `~/.claude/projects/` 的 Claude 会话，以及 `~/.codex/sessions/` 的 Codex 会话；项目与 Agent 标签正确。
 - [ ] 中文全文搜索、命中定位和高亮正常；Claude/Codex 筛选各自只显示对应结果。
