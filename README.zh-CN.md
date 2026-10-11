@@ -24,6 +24,7 @@ ReSession 统一浏览、搜索和回放本地 Claude Code 与 Codex 会话；�
 - **找会话**——跨全部项目浏览；标题模糊搜索 + 会话正文全文搜索（防抖、缓存加速、命中高亮）
 - **看回放**——只读转录渲染：markdown、代码高亮、工具调用/子 agent 段落折叠
 - **恢复**——一键在内嵌真终端运行 `claude --resume` 或 `codex resume`，全彩 TUI 原样运行
+- **复制终端内容**——TUI 接管鼠标时，macOS 按住 Option、Windows/Linux 按住 Shift 拖选，再用复制按钮或 Cmd+C / Ctrl+Shift+C 复制
 - **并行**——PTY 常驻后端（以会话 id 为键），切走切回不丢；忙/闲圆点实时显示哪个在干活
 - **开新的**——选择 Claude 或 Codex，在任意目录启动全新会话（已知项目 / 文件夹选择器 / 手动路径）
 - **整理**——会话按项目分组收进可折叠的项目树；吵闹的会话可归档隐藏，完成的 Claude 会话可删除（移入系统废纸篓，可恢复）
@@ -33,7 +34,7 @@ ReSession 统一浏览、搜索和回放本地 Claude Code 与 Codex 会话；�
 
 ## 当前状态
 
-Claude 与 Codex 均已发布并在 Windows/macOS 日常使用（v0.7.1）。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
+Claude 与 Codex 均已发布并在 Windows/macOS 日常使用。v0.7.2 修正 macOS 终端选区并增加明确的复制反馈。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
 
 ## 安装
 

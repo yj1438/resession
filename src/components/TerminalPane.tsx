@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { invoke, isTauri } from "../api";
 import { providerLabel } from "../providers";
+import { copyText } from "../clipboard";
 import type { SessionMeta } from "../types";
 
 interface PtyEvent {
@@ -59,6 +60,18 @@ export default function TerminalPane({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ptyIdRef = useRef<string | null>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const isMac = /Mac/.test(navigator.platform);
+
+  const copySelection = () => {
+    const selection = termRef.current?.getSelection();
+    if (!selection) return;
+    void copyText(selection)
+      .then(() => setCopyFeedback("已复制"))
+      .catch((error) => setCopyFeedback(`复制失败：${String(error)}`));
+  };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -67,27 +80,33 @@ export default function TerminalPane({
       fontFamily: "Consolas, 'Cascadia Mono', monospace",
       fontSize: 13,
       cursorBlink: true,
+      // macOS 用 Option 强制本地选择；其他平台仍由 xterm 使用 Shift。
+      macOptionClickForcesSelection: true,
       theme: TERMINAL_THEME,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+    termRef.current = term;
+    term.onSelectionChange(() => {
+      setHasSelection(term.hasSelection());
+      setCopyFeedback("");
+    });
 
-    // claude/codex 的 TUI 会开启鼠标上报接管鼠标事件，Shift+拖选是 xterm
-    // 的本地选择逃生门。这里显式兜底 Cmd+C：有选中内容时复制，
-    // 无选中则放行默认（透传 ^C 发送 SIGINT）。
+    // 有选区时处理系统复制快捷键；Ctrl+C 和无选区的按键保留原终端行为。
     term.attachCustomKeyEventHandler((event) => {
+      const copyShortcut = isMac
+        ? event.metaKey && !event.ctrlKey && !event.altKey
+        : event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey;
       if (
         event.type === "keydown" &&
-        event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
+        copyShortcut &&
         (event.key === "c" || event.key === "C")
       ) {
-        const selection = term.getSelection();
-        if (selection) {
-          navigator.clipboard?.writeText(selection).catch(() => {});
+        if (term.hasSelection()) {
+          event.preventDefault();
+          copySelection();
           return false;
         }
       }
@@ -202,6 +221,7 @@ export default function TerminalPane({
       unlistens.forEach((u) => u());
       // 不 invoke pty_close：PTY 常驻，切会话/切标签不终止
       ro.disconnect();
+      termRef.current = null;
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,10 +243,16 @@ export default function TerminalPane({
         </span>
         <span
           className="term-hint"
-          title="鼠标已被 TUI 接管：按住 Shift 拖选文本，Cmd+C 复制"
+          title={isMac
+            ? "按住 Option（⌥）拖选文本，Cmd+C 或点击复制按钮"
+            : "按住 Shift 拖选文本，Ctrl+Shift+C 或点击复制按钮"}
         >
-          ⇧ 拖选可复制
+          {isMac ? "⌥ 拖选，⌘C 复制" : "⇧ 拖选，Ctrl+Shift+C 复制"}
         </span>
+        <span className="term-copy-feedback" role="status" title={copyFeedback}>{copyFeedback}</span>
+        <button className="term-copy" disabled={!hasSelection} onClick={copySelection}>
+          复制选中内容
+        </button>
         <button className="term-close" onClick={closePty}>
           ⏹ 关闭终端
         </button>

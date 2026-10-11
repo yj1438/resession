@@ -102,9 +102,21 @@ jobs:
           fi
           ls -la release/
 
+      - name: Extract release notes from changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          awk -v heading="## ${GITHUB_REF_NAME} " '
+            index($0, heading) == 1 { collecting = 1; next }
+            /^## / && collecting { exit }
+            collecting { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
+          body_path: release-notes.md
           generate_release_notes: true

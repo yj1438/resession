@@ -3,6 +3,12 @@
 所有显著变更记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)；
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。发版时把对应段落贴进 GitHub Release notes 头部。
 
+## Unreleased
+
+## v0.7.2 — 2026-10-08
+
+- **修复**：macOS 原生终端开启 Option（⌥）拖选，修正 TUI 接管鼠标时的选区提示；新增「复制选中内容」按钮、同步剪贴板复制回退与可见的失败提示。
+
 ## v0.7.1 — 2026-10-05
 
 - **修复**：claude/codex 的 TUI 接管鼠标后终端无法拖选复制——终端栏新增「⇧ 拖选可复制」提示，并显式兜底 Cmd+C 复制选中内容（无选中时仍正常发送 ^C）
