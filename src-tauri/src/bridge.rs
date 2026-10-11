@@ -1,6 +1,6 @@
 //! Agent Bridge：进程内 loopback HTTP 服务。
 //!
-//! skill（触发词 `trs`）通过它把一个 agent 会话的内容投递给另一个会话，
+//! skill（触发词 `rscc` / `rscx`，可选 `@关键词` 选会话）通过它把一个 agent 会话的内容投递给另一个会话，
 //! 并回读目标会话的原生 jsonl 增量。协议与不变量见 docs/bridge-design.md；
 //! 传输层移植自 plugins/tmux-agent（send-keys→pty_write、capture-pane→jsonl tail）。
 //!
@@ -34,6 +34,8 @@ struct BridgeSession {
     id: String,
     provider: String,
     title: String,
+    /// ReSession 别名（@关键词 消歧的优先匹配来源；未设置则为空串）
+    alias: String,
     cwd: String,
     running: bool,
     busy: bool,
@@ -169,10 +171,13 @@ fn handle(app: &AppHandle, token: &str, mut req: Request) -> Result<(), std::io:
     )
 }
 
-/// 扫描缓存 + PTY 忙闲 → 可投递目标列表
+/// 扫描缓存 + PTY 忙闲 + 别名 → 可投递目标列表
 fn list_sessions(app: &AppHandle) -> Result<Vec<BridgeSession>, String> {
     let settings = app.state::<SettingsState>();
-    let busy_ms = settings.0.lock().unwrap().busy_ms;
+    let (busy_ms, aliases) = {
+        let s = settings.0.lock().unwrap();
+        (s.busy_ms, s.aliases.clone())
+    };
     let metas: Vec<SessionMeta> = crate::scan_all_sessions(&settings)?;
     drop(settings);
     let statuses = pty::list(&app.state::<PtyMap>());
@@ -180,13 +185,14 @@ fn list_sessions(app: &AppHandle) -> Result<Vec<BridgeSession>, String> {
     Ok(metas
         .into_iter()
         .map(|m| {
-            let id = format!("{}:{}", m.provider, m.id);
-            let status = statuses.iter().find(|s| s.id == id);
+            let key = format!("{}:{}", m.provider, m.id);
+            let status = statuses.iter().find(|s| s.id == key);
             let running = status.is_some();
             let busy = running
                 && now.saturating_sub(status.unwrap().last_output_ms) < busy_ms;
             BridgeSession {
-                id,
+                id: key.clone(),
+                alias: aliases.get(&key).cloned().unwrap_or_default(),
                 provider: m.provider.clone(),
                 title: m.title.clone().unwrap_or_default(),
                 cwd: m.cwd.clone().unwrap_or_default(),
@@ -366,6 +372,7 @@ mod tests {
             id: "claude:x".into(),
             provider: "claude".into(),
             title: "t".into(),
+            alias: "我的别名".into(),
             cwd: "c".into(),
             running: true,
             busy: false,
@@ -374,7 +381,8 @@ mod tests {
         let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(|k| k.as_str()).collect();
         keys.sort_unstable();
         // serde_json::Value 内部是 BTreeMap：key 按字母序重排，顺序不是契约的一部分
-        assert_eq!(keys, ["busy", "cwd", "id", "provider", "running", "title"]);
+        assert_eq!(keys, ["alias", "busy", "cwd", "id", "provider", "running", "title"]);
+        assert_eq!(v["alias"], "我的别名");
         assert!(!serde_json::to_string(&s).unwrap().contains('_'));
     }
 }

@@ -7,7 +7,7 @@
 
 ### 目标
 
-让任意 agent 会话（Claude Code / Codex）通过一个 skill 触发词（`trs`），把**由 agent 自己整理的内容**投递给另一个会话，并能回读对方的回复。人在环上：agent 发送的前提是用户在会话里触发了它。
+让任意 agent 会话（Claude Code / Codex）通过一对 skill 触发词（`rscc` 发 Claude / `rscx` 发 Codex，可选 `@关键词` 精选会话），把**由 agent 自己整理的内容**投递给目标会话，并能回读对方的回复。人在环上：agent 发送的前提是用户在会话里触发了它。
 
 ### 非目标（明确不做）
 
@@ -21,7 +21,7 @@
 
 ```
 ┌─ Agent 会话 A（任意 provider）────────────────────┐
-│  用户: "trs 把这个方案发给 codex 会话评审"          │
+│  用户: "rscx 把这个方案发给 codex 会话评审"         │
 │  agent 调用 skill → curl http://127.0.0.1:<port>  │
 └──────────────┬────────────────────────────────────┘
                │ loopback HTTP + token
@@ -113,7 +113,7 @@
 `CALLER`/`TARGET` 后缀补充会话来源标注（ReSession 会话 id），便于双方在
 转录里对账。
 
-## 6. Skill 设计（`resession-bridge`，触发词 `trs`）
+## 6. Skill 设计（`resession-bridge`，触发词 `rscc` / `rscx`，可选 `@关键词` 精选会话）
 
 - 双端安装：`~/.claude/skills/` 与 `~/.codex/skills/`（同一份 SKILL.md，
   命令示例与 tmux-agent 版同构，仅把 Helper 调用换成 bridge HTTP 调用）
@@ -126,7 +126,7 @@
   4. `POST /bridge/send`；409 → 等待重试（上限后报 pending）
   5. 需要回传时轮询 `/bridge/tail`，按固定格式汇报：**目标完整回复 → 调用侧
      结论 → 查看入口**（"在 ReSession 中点击该会话查看"）
-- 触发词与 tmux 版保持习惯：`trs <请求>`、`to claude ...` / `to codex ...`
+- 触发词按 Agent 拆分（2026-09-24 调整，原为单一 `trs` + to 修饰）：`rscc <请求>` / `rscx <请求>`，可选 `@关键词` 精选会话（匹配优先级：别名精确 > 别名子串 > cwd 子串 > 标题子串）
 
 ## 7. 与 tmux-agent 的能力对照
 

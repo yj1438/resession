@@ -1,6 +1,6 @@
 ---
 name: resession-bridge
-description: "[v0.1.0] 通过 ReSession 的本地桥（HTTP）把消息投递给另一个 Claude Code / Codex 会话，并回读其原生转录增量。用户以 trs 请求跨会话咨询、评审、实现、移交或查看目标会话时使用（如 'trs 评审当前变更'、'trs to codex 实现X'）；不用于通用 HTTP 调试，不与 tmux-agent 共用触发词。"
+description: "[v0.1.0] 通过 ReSession 的本地桥（HTTP）把消息投递给另一个 Claude Code / Codex 会话，并回读其原生转录增量。用户以 rscc（发往 Claude）或 rscx（发往 Codex）请求跨会话咨询、评审、实现、移交或查看目标会话，可选 @关键词 精选会话（如 'rscc 评审当前变更'、'rscx@mario 实现X'）；不用于通用 HTTP 调试；tcc/tcx 属于 tmux-agent，本 skill 不响应。"
 ---
 
 # resession-bridge：经 ReSession 桥的本地 Agent 协作
@@ -20,23 +20,26 @@ cat ~/.resession/bridge.json    # { "port": <N>, "token": "<uuid>" }
 
 ## 1. 路由与目标
 
-唯一入口是 `trs <请求>`；`to claude` / `to codex` 是**可选**的目标修饰，不是必需前缀：
+双入口，触发词即目标 Agent：
 
 ```text
-trs 评审一下当前变更          ← 目标由上下文推断（如另一侧是 codex 会话则推 codex）
-trs to codex 按 XX 实现       ← 想指定目标时写 to <agent>
+rscc 评审一下当前变更          → 投递给 Claude 会话
+rscx 按 XX 规格实现登录        → 投递到 Codex 会话
+rscx@mario 查下进度            → 可选 @关键词 精选具体会话
 ```
 
-- 推断不了接收方且上下文无法确定时询问用户，不猜测。
+- `@关键词`（紧跟或空格分隔均可）按优先级匹配：**别名精确 > 别名子串 > cwd 路径子串 > 标题子串**；数据来自 `/bridge/sessions` 的 `alias` 字段。
+- 唯一运行中命中 → 直接投递；多命中 → 列候选（标题 + 目录）问用户；零命中 → 告知并列出运行中会话。
+- 不带 @：该 provider 仅一个运行中会话 → 直接投递；多个运行中 → 同样列候选问用户。
 - `tcc`/`tcx` 属于 tmux-agent 的入口，本 skill 不响应这两个词（两插件可能同时安装）。
-- **目标会话必须已在 ReSession 列表中**。列表来自扫描缓存：
+- **目标会话必须已在 ReSession 中运行**。列表来自扫描缓存：
 
 ```bash
 curl -sf -H "Authorization: Bearer $TOKEN" "$BR/bridge/sessions"
 ```
 
-返回字段：`id`（`<provider>:<uuid>`，投递与回读都用它）、`provider`、`title`、
-`cwd`、`running`、`busy`。按 provider + title/cwd 精确匹配；确定不了问用户。
+返回字段：`id`（`<provider>:<uuid>`，投递与回读都用它）、`provider`、`alias`（ReSession 别名，
+`@关键词` 匹配的首选来源）、`title`、`cwd`、`running`、`busy`。匹配顺序：别名 → @关键词/标题/cwd；确定不了问用户。
 `running=false` 的会话先告知用户在 ReSession 里恢复它，桥不代为拉起。
 
 ## 2. 主流程：整理 → 发送 → 轮询回读

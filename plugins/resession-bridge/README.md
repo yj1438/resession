@@ -22,8 +22,9 @@ cp -r plugins/resession-bridge/skills ~/.codex/skills/resession-bridge
 ## 用法
 
 ```text
-trs 评审一下当前未提交的变更        # 目标由上下文推断
-trs to codex 按 <方案> 实现        # 可选：to <agent> 显式指定目标
+rscc 评审一下当前未提交的变更        # 投递给 Claude 会话
+rscx 按 <方案> 实现                  # 投递到 Codex 会话
+rscx@mario 查下进度                  # 可选：@关键词 精选具体会话
 ```
 
 `tcc`/`tcx` 属于 tmux-agent；两插件同时安装时本 skill 不响应它们。
