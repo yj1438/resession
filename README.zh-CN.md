@@ -35,7 +35,7 @@ ReSession 统一浏览、搜索和回放本地 Claude Code 与 Codex 会话；�
 
 ## 当前状态
 
-Claude 与 Codex 均已发布并在 Windows/macOS 日常使用（v0.7.2）。agent-bridge 功能与 resession-bridge 技能（`rscc` / `rscx`）在 `feat/agent-bridge` 分支上，待发版。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
+Claude 与 Codex 均已发布并在 Windows/macOS 日常使用（v0.8.0）。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
 
 ## 安装
 

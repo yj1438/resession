@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+## v0.8.0 — 2026-10-11
+
+- **新增**：agent-bridge 本地桥 + resession-bridge 技能——在 Claude Code 会话里用 `rscc`（发往 Claude）/ `rscx`（发往 Codex）把任务投递给另一个运行中的 Agent 会话，可选 `@关键词` 精选具体会话，并回读其原生转录；多 Agent 协作无需切窗口
+- **变更**：resession-bridge 触发词由 `trs` 调整为 `rscc` / `rscx`（`tcc` / `tcx` 归还 tmux-agent，两插件并存不冲突）
+- **新增**：Agent 多选过滤芯片（列表顶部，Claude / Codex 独立显隐，搜索结果同步过滤）
+
 - **新增**：agent-bridge 本地桥 + resession-bridge 技能——在 Claude Code 会话里用 `rscc`（发往 Claude）/ `rscx`（发往 Codex）把任务投递给另一个运行中的 Agent 会话，可选 `@关键词` 精选具体会话，并回读其原生转录；多 Agent 协作无需切窗口
 - **变更**：resession-bridge 触发词由 `trs` 调整为 `rscc` / `rscx`（`tcc` / `tcx` 归还 tmux-agent，两插件并存不冲突）
 - **新增**：Agent 多选过滤芯片（列表顶部，Claude / Codex 独立显隐，搜索结果同步过滤）

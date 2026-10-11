@@ -35,7 +35,7 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 
 ## Status
 
-Claude and Codex are both shipped and used daily on Windows and macOS (v0.7.2). The agent-bridge feature and the resession-bridge skill (`rscc` / `rscx`) live on the `feat/agent-bridge` branch, pending release. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
+Claude and Codex are both shipped and used daily on Windows and macOS (v0.8.0). Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 
