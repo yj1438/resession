@@ -68,6 +68,7 @@ export default function TerminalPane({
   const copySelection = () => {
     const selection = termRef.current?.getSelection();
     if (!selection) return;
+    setCopyFeedback("复制中…");
     void copyText(selection)
       .then(() => setCopyFeedback("已复制"))
       .catch((error) => setCopyFeedback(`复制失败：${String(error)}`));
