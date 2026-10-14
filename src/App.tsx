@@ -6,11 +6,12 @@ import TranscriptPane from "./components/TranscriptPane";
 import TerminalPane from "./components/TerminalPane";
 import NewSessionPanel from "./components/NewSessionPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "./api";
 import { checkUpdate, type UpdateInfo } from "./update";
+import { PROVIDERS, providerLabel, ptySessionId, type ProviderName } from "./providers";
 import { ask } from "@tauri-apps/plugin-dialog";
 import ToastHost, { reportError } from "./components/Toasts";
-import { PROVIDERS, providerLabel, ptySessionId, type ProviderName } from "./providers";
 import { pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
@@ -77,7 +78,16 @@ export default function App() {
   const [usingMock] = useState(!isTauri);
   const [activePtys, setActivePtys] = useState<PtyStatus[]>([]);
   const [query, setQuery] = useState("");
-  const [providerFilter, setProviderFilter] = useState<"all" | ProviderName>("all");
+  // Agent 多选过滤：默认全开；全部关掉时自动回到全开（避免空列表死状态）
+  const allOn = () =>
+    Object.fromEntries(PROVIDERS.map((p) => [p.value, true])) as Record<string, boolean>;
+  const [providerSel, setProviderSel] = useState<Record<string, boolean>>(allOn);
+  const toggleProvider = (name: ProviderName) => {
+    setProviderSel((prev) => {
+      const next = { ...prev, [name]: !prev[name] };
+      return Object.values(next).some(Boolean) ? next : allOn();
+    });
+  };
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -105,6 +115,7 @@ export default function App() {
   const locateSeqRef = useRef(0);
   // 更新检查：启动 3s 后静默查一次 GitHub Releases
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [appVersion, setAppVersion] = useState("");
 
   const stopSidebarResize = useCallback(() => {
     if (!resizeRef.current) return;
@@ -181,6 +192,7 @@ export default function App() {
     const u = setTimeout(() => {
       checkUpdate().then(setUpdate).catch(() => {});
     }, 3000);
+    getVersion().then(setAppVersion).catch(() => {});
     const t = setInterval(refreshSessions, 15000);
     return () => {
       clearInterval(t);
@@ -250,24 +262,22 @@ export default function App() {
       ? sessions
       : sessions.filter((s) => !archivedIds.has(sessionKey(s)));
     const q = query.trim().toLowerCase();
-    const byProvider = providerFilter === "all"
-      ? kept
-      : kept.filter((s) => s.provider === providerFilter);
+    const byProvider = kept.filter((s) => providerSel[s.provider] !== false);
     if (!q) return byProvider;
     return byProvider.filter((s) =>
       [s.title, s.cwd, s.projectDir].some((f) => f?.toLowerCase().includes(q)),
     );
-  }, [sessions, query, archivedIds, showArchived, providerFilter]);
+  }, [sessions, query, archivedIds, showArchived, providerSel]);
 
   // 搜索结果同样屏蔽已归档会话
   const visibleHits = useMemo(
     () =>
       hits?.filter((h) =>
-        (providerFilter === "all" || h.session.provider === providerFilter) &&
+        providerSel[h.session.provider] &&
         (showArchived || !archivedIds.has(sessionKey(h.session)))
       ) ??
       null,
-    [hits, archivedIds, showArchived, providerFilter],
+    [hits, archivedIds, showArchived, providerSel],
   );
 
   // 侧栏底部“已归档”开关的计数（按全量会话，不随搜索过滤）
@@ -475,17 +485,6 @@ export default function App() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <select
-          className="provider-filter"
-          aria-label="筛选 Agent"
-          value={providerFilter}
-          onChange={(e) => setProviderFilter(e.target.value as "all" | ProviderName)}
-        >
-          <option value="all">全部 Agent</option>
-          {PROVIDERS.map((item) => (
-            <option key={item.value} value={item.value}>{item.label}</option>
-          ))}
-        </select>
         <button className="new-btn" onClick={() => setPanelOpen(true)}>
           ➕ 新会话
         </button>
@@ -541,6 +540,8 @@ export default function App() {
       <div className="main">
         <Sidebar
           sessions={filtered}
+          providerSel={providerSel}
+          onToggleProvider={toggleProvider}
           selectedId={selectedId}
           activeIds={activeIds}
           busyIds={busyIds}
@@ -657,6 +658,7 @@ export default function App() {
       <ToastHost />
 
       <footer className="statusbar" data-tick={tick}>
+        {appVersion && <span title="当前版本">v{appVersion} · </span>}
         {selected && (
           <span className="statusbar-session" title={selected.cwd ?? selected.projectDir}>
             📂 {pathBaseName(selected.cwd ?? selected.projectDir)}

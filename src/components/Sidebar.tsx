@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Highlight from "./Highlight";
 import { normalizePath, pathBaseName } from "../paths";
-import { providerCanTrash, providerLabel, ptySessionId } from "../providers";
+import { PROVIDERS, providerCanTrash, providerLabel, ptySessionId, type ProviderName } from "../providers";
 import type { SearchHit, SessionMeta } from "../types";
 
 interface Props {
   sessions: SessionMeta[];
+  providerSel: Record<string, boolean>;
+  onToggleProvider: (name: ProviderName) => void;
   selectedId: string | null;
   activeIds: string[];
   busyIds: Set<string>;
@@ -84,6 +86,8 @@ function groupSessions(sessions: SessionMeta[]): ProjectGroup[] {
 export default function Sidebar({
   sessions,
   selectedId,
+  providerSel,
+  onToggleProvider,
   activeIds,
   busyIds,
   hits,
@@ -148,6 +152,23 @@ export default function Sidebar({
 
   return (
     <aside id="session-sidebar" className="sidebar" style={{ width }}>
+      <div className="provider-chips" role="group" aria-label="按 Agent 筛选">
+        {PROVIDERS.map((p) => {
+          const on = providerSel[p.value];
+          const count = sessions.filter((item) => item.provider === p.value).length;
+          return (
+            <button
+              key={p.value}
+              className={on ? "provider-chip on" : "provider-chip off"}
+              aria-pressed={on}
+              title={on ? `点击隐藏 ${p.label} 会话` : "点击显示"}
+              onClick={() => onToggleProvider(p.value)}
+            >
+              {p.label}{on ? ` · ${count}` : ""}
+            </button>
+          );
+        })}
+      </div>
       {hits ? (
         <ul className="hits">
           {hits.map((hit) => (

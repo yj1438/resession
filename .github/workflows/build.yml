@@ -5,7 +5,7 @@ name: build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     tags: ["v*"]
 
 # 同一 ref（分支/标签）重复触发时取消前一个：防止 annotated tag 偶发

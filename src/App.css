@@ -1305,3 +1305,33 @@ mark {
 .tree-toggle:hover {
   color: var(--accent);
 }
+
+/* Agent 多选过滤芯片（列表顶部） */
+.provider-chips {
+  display: flex;
+  gap: 6px;
+  padding: 7px 12px 5px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.provider-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 11px;
+  padding: 2px 10px;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.provider-chip.on {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.provider-chip.off {
+  opacity: 0.5;
+  text-decoration: line-through;
+}

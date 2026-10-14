@@ -1,8 +1,8 @@
 # ReSession Roadmap
 
 > 更新日期：2026-10-14
-> 当前开发版本：`v0.7.2`
-> 最近发布版本：`v0.7.2`（此前 `v0.7.1`，M3 Codex Provider 已随 v0.5.0 发布）
+> 当前开发版本：`v0.8.1`（发布准备中，待 CI 与产物验收）
+> 最近发布版本：`v0.8.0`（2026-10-11，Agent Bridge 与多选 Provider 筛选；M3 Codex Provider 已随 v0.5.0 发布）
 
 ## 产品定位
 
