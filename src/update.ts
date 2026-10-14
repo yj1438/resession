@@ -2,6 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 
 export interface UpdateInfo {
   current: string;
+  // 不含 v 前缀，由界面统一添加，兼容带/不带 v 的 Release 标签。
   latest: string;
   hasUpdate: boolean;
   url: string;
@@ -32,7 +33,7 @@ export async function checkUpdate(): Promise<UpdateInfo> {
   );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const rel = (await res.json()) as { tag_name?: string; html_url?: string };
-  const latest = String(rel.tag_name ?? "");
+  const latest = String(rel.tag_name ?? "").trim().replace(/^v/i, "");
   const url = String(
     rel.html_url ?? "https://github.com/yj1438/resession/releases",
   );
