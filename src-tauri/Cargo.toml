@@ -19,3 +19,8 @@ tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
 trash = "5"
 session-core = { path = "../crates/session-core" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString"] }

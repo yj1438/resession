@@ -57,6 +57,9 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Run frontend tests
+        run: npm test
+
       - name: Build (no bundle)
         run: npm run tauri build -- --no-bundle
 

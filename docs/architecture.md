@@ -95,12 +95,22 @@ pub struct ResumeSpec {
   断开观看，切回时经 `pty_snapshot` 回放缓冲（512KB 滚动）重新附着，
   天然支持并行多会话。UI 上以侧栏绿点 + 状态栏计数标识，页头按钮手动关闭
 - **不解析、不记录、不干预 PTY 内容**——这就是"原生"的含义
+- **Mac PTY 的 UTF-8 缺省环境**：Finder/Dock 启动时若 `LANG`、`LC_CTYPE`、
+  `LC_ALL` 全部缺失/为空，只向新子进程补 `LANG=en_US.UTF-8`，不覆盖显式 locale，
+  不修改全局设置。否则 Claude 自行调用 `pbcopy` 的中文自动复制可能得到空内容，
+  这条路径不会经过 ReSession 的复制命令。已运行 PTY 不自动改环境或重启。
 - **终端复制**：TUI 开启鼠标上报时，macOS 开启 xterm 的
   `macOptionClickForcesSelection`，用 Option（⌥）拖选；Windows/Linux 用 Shift
   拖选。选区可通过 Mac 的 Cmd+C、其他平台的 Ctrl+Shift+C 或“复制选中内容”
-  按钮复制；Mac App 经 Tauri 调用系统 `pbcopy` 写入原生剪贴板，显式指定 UTF-8，
-  等待成功退出后显示「已复制」。其他平台/浏览器先同步复制，再回退 Clipboard API。
-  失败就地显示。
+  按钮复制。候选修复改为在 App 主线程通过 `NSPasteboard` 明确写入纯文本并即时
+  读回比对，成功才显示「已复制（系统已核验）」；不再仅依据 `pbcopy` 退出码。
+  Mac App 还捕获宿主内的 DOM `copy` 事件，覆盖菜单路径，复制按钮点击时保留
+  终端焦点。其他平台/浏览器保留原 DOM 复制路径，同步复制失败再回退 Clipboard API。
+  失败就地显示，日志按操作编号记录按钮/键盘/copy 入口、前端 UTF-8 字节数、Rust
+  收到的字节数与核验结果，不记录正文；前后长度不一致时拒绝写入，不监听用户剪贴板历史。
+  即时核验不保证内容之后不被其他应用覆盖，新 App 全链路实测仍是验收门槛。
+  CLI 自身的选区不属于 xterm 本地选区；普通拖选自动复制与 Option 本地拖选应分开验收。
+  Mac 上关闭 `altClickMovesCursor`，防止 Option 短选择被误作光标定位、向 CLI 发送方向键。
   未触发复制快捷键的按键继续传给原生终端。
 
 #### ConPTY 实战笔记（M1.2 踩坑）

@@ -149,12 +149,29 @@ fn build_command(spec: &ResumeSpec) -> CommandBuilder {
         };
         cmd.env("PATH", merged);
     }
+    // Finder/Dock 启动可能没有 locale。CLI 自己调用 pbcopy 自动复制时，
+    // C locale 会让中文/Emoji 变为空文本，且 pbcopy 仍返回成功。
+    // 只补缺省值，不覆盖用户明确配置的 locale，也不改全局环境。
+    #[cfg(target_os = "macos")]
+    {
+        let locales = ["LANG", "LC_CTYPE", "LC_ALL"].map(|name| std::env::var_os(name));
+        if needs_utf8_locale_fallback(&locales) {
+            cmd.env("LANG", "en_US.UTF-8");
+        }
+    }
     // 颜色三件套：TERM/COLORTERM 是常规声明；FORCE_COLOR=3 强制 Node/chalk
     // 走真彩，绕过其在 ConPTY 下不可靠的终端能力自动探测
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     cmd.env("FORCE_COLOR", "3");
     cmd
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn needs_utf8_locale_fallback(locales: &[Option<std::ffi::OsString>]) -> bool {
+    locales
+        .iter()
+        .all(|value| value.as_ref().map(|value| value.is_empty()).unwrap_or(true))
 }
 
 /// 幂等 spawn：该会话已有 PTY 时直接返回（调用方负责先行检查，这里兜底）。
@@ -431,6 +448,19 @@ pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn utf8_locale_fills_only_missing_defaults() {
+        assert!(needs_utf8_locale_fallback(&[None, None, None]));
+        assert!(needs_utf8_locale_fallback(&[Some("".into()), None, Some("".into())]));
+        for index in 0..3 {
+            let mut locales = [None, None, None];
+            locales[index] = Some("zh_CN.UTF-8".into());
+            assert!(!needs_utf8_locale_fallback(&locales));
+        }
+        // 显式 C locale 也不能悄悄改写；这不是缺省 GUI 环境。
+        assert!(!needs_utf8_locale_fallback(&[None, None, Some("C".into())]));
+    }
 
     #[test]
     fn output_buffer_offsets_survive_truncation() {

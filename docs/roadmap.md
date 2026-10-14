@@ -70,7 +70,7 @@ flowchart LR
 - [x] 增加坏 JSONL、缺字段、目录失效、二进制不存在等测试；
 - [x] macOS GUI 环境修复：Homebrew/npm/版本管理器候选路径（platform::extra_bin_dirs）+ 登录 shell 环境解析（login_shell_path，探测与 PTY 环境基座双接入）；Mac 实机验收通过（2026-09-26，含 Dock 启动 + 会话内 CLI 工具可用）；
 - [x] 修正 macOS TUI 鼠标接管下的本地选区：开启 Option 拖选，增加复制按钮和剪贴板失败反馈（源码构建通过，新 App 实机验收待做）；
-- [x] macOS 复制走原生剪贴板通道，修复 WebView 返回成功但粘贴为空的问题（系统中文/多行往返验证通过，新 App 实机验收待做）；
+- [ ] 完成 macOS 终端复制全链路修复与实测（已确认 GUI 的 CLI 子进程缺少 locale，且 Claude 自行自动复制；9 组 pbcopy 编码对照复现中文/Emoji 0 字节。主修复补 PTY 缺省 UTF-8，原生写入/读回另作防护，待 Rust CI 与实际新 PTY 验收）；
 - [x] 对 100、500、1000 个会话记录冷启动、重扫和搜索耗时（examples/bench.rs，结果见 docs/benchmarks.md：1000 会话热扫 37ms / 冷扫 165ms / 热搜索 83ms，远低于阈值）；
 - [x] 大会话渲染实测（20k 事件）：手写窗口化渲染（IntersectionObserver 扩窗 + 滚动锚定 + memo），加载 8s→秒开、滚动卡顿消除，零新依赖；
 - [ ] 固化 Windows、macOS 发布产物的启动冒烟检查；

@@ -1,44 +1,65 @@
-/// macOS 的 WebView 复制命令可能返回成功但未写入系统剪贴板。
-/// 使用系统自带 pbcopy；选中文字仅经 stdin 传入，不拼进 shell 命令或日志。
+/// 在 App 主线程内写入明确的纯文本类型，并读回核验。
+/// 不再把外部 pbcopy 退出成功当作写入成功，也不让它猜测 RTF/EPS 格式。
 #[cfg(target_os = "macos")]
 pub fn write_text(text: &str) -> Result<(), String> {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSPasteboard;
+    use objc2_foundation::NSString;
 
-    let mut child = Command::new("/usr/bin/pbcopy")
-        .args(["-pboard", "general"])
-        // Finder 启动可能没有 UTF-8 locale，明确指定以保留中文。
-        .env("LC_ALL", "en_US.UTF-8")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| format!("无法打开系统剪贴板：{error}"))?;
+    let _main_thread = MainThreadMarker::new()
+        .ok_or_else(|| "剪贴板操作必须在 App 主线程执行".to_string())?;
+    if text.is_empty() {
+        return Err("没有可复制的文字".into());
+    }
 
-    let written = child
-        .stdin
-        .take()
-        .ok_or_else(|| "无法写入系统剪贴板".to_string())
-        .and_then(|mut input| {
-            input
-                .write_all(text.as_bytes())
-                .map_err(|error| format!("剪贴板写入失败：{error}"))
-        });
-    // stdin 在等待前关闭，pbcopy 收到 EOF 后才会提交剪贴板。
-    if let Err(error) = written {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(error);
+    let board = NSPasteboard::generalPasteboard();
+    let plain_text = NSString::from_str("public.utf8-plain-text");
+    let value = NSString::from_str(text);
+    board.clearContents();
+    if !board.setString_forType(&value, &plain_text) {
+        return Err("系统拒绝写入剪贴板".into());
     }
-    let result = child.wait().map_err(|error| format!("剪贴板写入失败：{error}"))?;
-    if result.success() {
-        Ok(())
-    } else {
-        Err(format!("系统剪贴板写入失败（退出状态：{result}）"))
+    let actual = board.stringForType(&plain_text).map(|value| value.to_string());
+    verify_text(text, actual.as_deref())
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn verify_text(expected: &str, actual: Option<&str>) -> Result<(), String> {
+    if expected.is_empty() {
+        return Err("没有可复制的文字".into());
     }
+    let actual = actual.ok_or_else(|| "剪贴板写入后未读到纯文本".to_string())?;
+    if actual != expected {
+        return Err(format!(
+            "剪贴板核验失败（期望 {} 字节，实际 {} 字节）",
+            expected.len(),
+            actual.len()
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn write_text(_text: &str) -> Result<(), String> {
     Err("当前平台不支持此原生剪贴板通道".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verify_text;
+
+    #[test]
+    fn verifies_exact_plain_text() {
+        for text in ["中文🙂\n第二行", "{\\rtf1 literal}", "%!PS-Adobe-3.0", "  \n"] {
+            assert!(verify_text(text, Some(text)).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_missing_empty_or_changed_readback() {
+        assert!(verify_text("原文", None).is_err());
+        assert!(verify_text("原文", Some("")).is_err());
+        assert!(verify_text("原文", Some("其他内容")).is_err());
+        assert!(verify_text("", Some("")).is_err());
+    }
 }

@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import { invoke, isTauri } from "../api";
 import { providerLabel } from "../providers";
 import { copyText } from "../clipboard";
+import { bindTerminalCopy } from "../terminalClipboard";
 import type { SessionMeta } from "../types";
 
 interface PtyEvent {
@@ -65,12 +66,17 @@ export default function TerminalPane({
   const [copyFeedback, setCopyFeedback] = useState("");
   const isMac = /Mac/.test(navigator.platform);
 
-  const copySelection = () => {
-    const selection = termRef.current?.getSelection();
-    if (!selection) return;
+  const copySelection = (text?: string, source: "button" | "key" | "copy" = "button") => {
+    const selection = text ?? termRef.current?.getSelection();
+    if (!selection) {
+      setCopyFeedback("复制失败：选区已失效，请重新选中");
+      return;
+    }
     setCopyFeedback("复制中…");
-    void copyText(selection)
-      .then(() => setCopyFeedback("已复制"))
+    void copyText(selection, source)
+      .then((method) => setCopyFeedback(
+        method === "native-verified" ? "已复制（系统已核验）" : "已复制（浏览器）",
+      ))
       .catch((error) => setCopyFeedback(`复制失败：${String(error)}`));
   };
 
@@ -83,6 +89,8 @@ export default function TerminalPane({
       cursorBlink: true,
       // macOS 用 Option 强制本地选择；其他平台仍由 xterm 使用 Shift。
       macOptionClickForcesSelection: true,
+      // Option 在 Mac 上专用于本地选择，避免短选区被解释成光标移动并向 CLI 发方向键。
+      altClickMovesCursor: !isMac,
       theme: TERMINAL_THEME,
     });
     const fit = new FitAddon();
@@ -95,24 +103,7 @@ export default function TerminalPane({
       setCopyFeedback("");
     });
 
-    // 有选区时处理系统复制快捷键；Ctrl+C 和无选区的按键保留原终端行为。
-    term.attachCustomKeyEventHandler((event) => {
-      const copyShortcut = isMac
-        ? event.metaKey && !event.ctrlKey && !event.altKey
-        : event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey;
-      if (
-        event.type === "keydown" &&
-        copyShortcut &&
-        (event.key === "c" || event.key === "C")
-      ) {
-        if (term.hasSelection()) {
-          event.preventDefault();
-          copySelection();
-          return false;
-        }
-      }
-      return true;
-    });
+    const unbindCopy = bindTerminalCopy(host, term, isMac, copySelection, isMac && isTauri);
 
     const ro = new ResizeObserver(() => fit.fit());
     ro.observe(host);
@@ -222,6 +213,7 @@ export default function TerminalPane({
       unlistens.forEach((u) => u());
       // 不 invoke pty_close：PTY 常驻，切会话/切标签不终止
       ro.disconnect();
+      unbindCopy();
       termRef.current = null;
       term.dispose();
     };
@@ -245,13 +237,18 @@ export default function TerminalPane({
         <span
           className="term-hint"
           title={isMac
-            ? "按住 Option（⌥）拖选文本，Cmd+C 或点击复制按钮"
+            ? "普通拖选可能由 CLI 自动复制；按住 Option（⌥）建立本地选区，再用 Cmd+C 或复制按钮"
             : "按住 Shift 拖选文本，Ctrl+Shift+C 或点击复制按钮"}
         >
           {isMac ? "⌥ 拖选，⌘C 复制" : "⇧ 拖选，Ctrl+Shift+C 复制"}
         </span>
         <span className="term-copy-feedback" role="status" title={copyFeedback}>{copyFeedback}</span>
-        <button className="term-copy" disabled={!hasSelection} onClick={copySelection}>
+        <button
+          className="term-copy"
+          disabled={!hasSelection}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => copySelection()}
+        >
           复制选中内容
         </button>
         <button className="term-close" onClick={closePty}>

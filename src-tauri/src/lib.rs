@@ -409,10 +409,46 @@ fn pty_write(ptys: State<PtyMap>, id: String, data: String) -> Result<(), String
 }
 
 #[tauri::command]
-async fn copy_text(text: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || clipboard::write_text(&text))
-        .await
-        .map_err(|error| format!("复制失败：{error}"))?
+async fn copy_text(
+    app: AppHandle,
+    text: String,
+    source: Option<String>,
+    expected_bytes: Option<usize>,
+) -> Result<(), String> {
+    static COPY_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let request_id = COPY_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let source = match source.as_deref() {
+        Some("button") => "button",
+        Some("key") => "key",
+        Some("copy") => "copy",
+        _ => "unknown",
+    };
+    log::info!(
+        "[clipboard] request id={request_id} source={source} jsBytes={expected_bytes:?} rustBytes={}",
+        text.len()
+    );
+    if expected_bytes.is_some_and(|expected| expected != text.len()) {
+        return Err("复制内容长度在调用过程中不一致，未写入剪贴板".into());
+    }
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    app.run_on_main_thread(move || {
+        let result = clipboard::write_text(&text);
+        // 只记录操作结果与长度，不记录用户复制的正文。
+        match &result {
+            Ok(()) => log::info!("[clipboard] native verified id={request_id} source={source}: {} bytes", text.len()),
+            Err(error) => log::warn!("[clipboard] native failed id={request_id} source={source}: {error}"),
+        }
+        let _ = sender.send(result);
+    })
+    .map_err(|error| format!("无法调度剪贴板操作：{error}"))?;
+    // 不在主线程等待自己；AppKit 对象也不跨线程传递。
+    tauri::async_runtime::spawn_blocking(move || {
+        receiver
+            .recv()
+            .map_err(|_| "剪贴板操作未返回结果".to_string())?
+    })
+    .await
+    .map_err(|error| format!("复制失败：{error}"))?
 }
 
 #[tauri::command]
