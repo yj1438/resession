@@ -1,6 +1,12 @@
-// 必须从点击/键盘事件中调用：WKWebView 的异步 Clipboard API 可能不可用，
-// 先通过同步 copy 命令保留用户手势，再回退到浏览器 Clipboard API。
+import { invoke, isTauri } from "./api";
+
+// Mac App 直接写原生剪贴板，避免 WKWebView 的 copy 返回成功但实际内容为空。
+// 其他平台/浏览器仍从点击或键盘事件同步复制，保留用户手势。
 export async function copyText(text: string): Promise<void> {
+  if (isTauri && /Mac/.test(navigator.platform)) {
+    await invoke<void>("copy_text", { text });
+    return;
+  }
   const previousFocus = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;

@@ -98,7 +98,9 @@ pub struct ResumeSpec {
 - **终端复制**：TUI 开启鼠标上报时，macOS 开启 xterm 的
   `macOptionClickForcesSelection`，用 Option（⌥）拖选；Windows/Linux 用 Shift
   拖选。选区可通过 Mac 的 Cmd+C、其他平台的 Ctrl+Shift+C 或“复制选中内容”
-  按钮复制；先尝试用户手势内的同步复制，再回退 Clipboard API，失败就地显示。
+  按钮复制；Mac App 经 Tauri 调用系统 `pbcopy` 写入原生剪贴板，显式指定 UTF-8，
+  等待成功退出后显示「已复制」。其他平台/浏览器先同步复制，再回退 Clipboard API。
+  失败就地显示。
   未触发复制快捷键的按键继续传给原生终端。
 
 #### ConPTY 实战笔记（M1.2 踩坑）

@@ -1,4 +1,5 @@
 mod bridge;
+mod clipboard;
 mod pty;
 mod settings;
 
@@ -408,6 +409,13 @@ fn pty_write(ptys: State<PtyMap>, id: String, data: String) -> Result<(), String
 }
 
 #[tauri::command]
+async fn copy_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || clipboard::write_text(&text))
+        .await
+        .map_err(|error| format!("复制失败：{error}"))?
+}
+
+#[tauri::command]
 fn pty_resize(ptys: State<PtyMap>, id: String, rows: u16, cols: u16) -> Result<(), String> {
     pty::resize(&ptys, &id, rows, cols)
 }
@@ -599,6 +607,7 @@ pub fn run() {
             new_session,
             known_projects,
             pty_write,
+            copy_text,
             pty_resize,
             pty_snapshot,
             pty_list,

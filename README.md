@@ -35,7 +35,7 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 
 ## Status
 
-Claude and Codex are both shipped and used daily on Windows and macOS (v0.8.0). Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
+Claude and Codex are both shipped and used daily on Windows and macOS. The latest release, v0.8.0, adds the local Agent Bridge and multi-select Agent filters. Version v0.8.1 is in release preparation: it fixes duplicate version prefixes and adds native macOS clipboard writes; CI and testing of the new app bundle are still pending. Bidirectional session continuation is a design proposal, not a shipped feature. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 
