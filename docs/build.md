@@ -71,8 +71,8 @@ debug 构建运行时加载 `devUrl`（需 vite:5173 在跑），未起 vite 即
 
 ## 5. 其他已知构建事项
 
-- **图标**：源文件 `app-icon.png`（512×512 占位图），改动后 `npx tauri icon app-icon.png`
-  重新生成 `src-tauri/icons/` 全套
+- **图标**：源文件 `app-icon.png`（1024×1024，R + 会话气泡），改动后 `npx tauri icon app-icon.png`
+  重新生成 `src-tauri/icons/` 全套；历代源图归档在 `docs/assets/`（如 `app-icon-v1.png`）
 - **前端资源更新后**：必须重新走 `tauri build`（嵌入发生在编译期），只改 dist 不重编无效
 - **交叉编译/macOS**：见 architecture.md 平台矩阵；macOS 正式分发需签名+公证（自用可跳）
 
