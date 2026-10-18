@@ -58,7 +58,15 @@ npm install
 npm run tauri build -- --no-bundle   # → src-tauri/target/release/resession.exe
 ```
 
-Requires Node ≥ 20, Rust (MSVC toolchain on Windows) and the VS Build Tools C++ workload. Details in [docs/build.md](docs/build.md).
+Prerequisites:
+
+- **Node.js ≥ 20** and npm — frontend build and the Tauri CLI
+- **Rust** via [rustup](https://rustup.rs) — `x86_64-pc-windows-msvc` toolchain on Windows, `aarch64-apple-darwin` on Apple silicon Macs
+- **Windows**: Visual Studio 2022 Build Tools with the **C++ workload** (MSVC linker + Windows SDK); if linking can't find MSVC tools, run `vcvars64.bat` from `VC\Auxiliary\Build\` first
+- **macOS**: Xcode Command Line Tools
+- **Runtime (Windows)**: WebView2 Runtime (preinstalled on Windows 11)
+
+Details and pitfall log in [docs/build.md](docs/build.md).
 
 ## Development
 

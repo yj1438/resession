@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 硬性约定
 
-- **不要自行 `git commit` 或 `git push`。** 完成修改后汇报变更内容，等用户明确说"提交/commit"再 commit、说"推送/push"再 push——用户迭代中的文件（图标、文档等）尤其不能提前定进历史。Rust 侧本机没有工具链，编译验证依赖 CI，因此更要避免未授权推送制造红 CI。
+- **不要自行 `git commit` 或 `git push`。** 完成修改后汇报变更内容，等用户明确说"提交/commit"再 commit、说"推送/push"再 push——用户迭代中的文件（图标、文档等）尤其不能提前定进历史。Rust 侧本机已有完整工具链，本地即可编译验证（见「本地构建环境」）；但避免未授权推送制造红 CI 的纪律不变。
 - 提交信息用英文 conventional commits（`feat:` / `fix:` / `docs:` / `chore:` / `ui:`）；代码注释、文档、UI 文案用中文。
 - 提交前检查 `package-lock.json` 的 diff：本机 npm 配置了内网 registry（antgroup-inc.cn），重新安装依赖会把 `resolved` 字段污染成内网源，CI 拉不到。还原后只提交功能文件。
 
@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm install                    # 前端依赖
 npm run dev                    # 浏览器 mock 模式（isTauri=false，走 MOCK 数据）
-npm run tauri dev              # 完整应用（需要 Rust 工具链，本机没有）
+npm run tauri dev              # 完整应用（本机 Rust 已就绪，见「本地构建环境」）
 npm run build                  # 前端构建 = tsc && vite build
 npx tsc --noEmit               # 仅类型检查
 npm run tauri icon <png>       # 从 1024×1024 PNG 生成全平台图标到 src-tauri/icons/
@@ -23,6 +23,13 @@ cargo test <test_name>         # 跑单个测试
 ```
 
 CI（.github/workflows/build.yml）= session-core 测试 + src-tauri 测试 + `npm ci` + `npm run tauri build -- --no-bundle`；`v*` 标签触发 GitHub Release 并附双平台产物。
+
+### 本地构建环境（2026-10-18 起）
+
+- 本机 Rust 为 rustup 标准安装：工具链在 `~/.rustup`（默认 1.98.1 msvc，`rustup update` 升级），crate 缓存在 `~/.cargo`；MSVC 链接用系统级 VS 2022 BuildTools。此前放在 `F:/git-workspace/ai/tools` 的便携工具链已删除，勿再引用。
+- 新终端可直接用 `cargo`（rustup 已把 `%USERPROFILE%\.cargo\bin` 写入用户 PATH）；若链接阶段报找不到 MSVC 工具，先执行 VS 2022 BuildTools 的 `VC\Auxiliary\Build\vcvars64.bat` 再重试。
+- 已本地验证：`npm run build`、`npm run tauri build -- --no-bundle`、两个目录的 `cargo test`，口径与 CI 一致。
+- 构建产物只在标准位置：`dist/`（vite）、`src-tauri/target/{debug,release}`、`crates/session-core/target/`，均已被 `.gitignore` 覆盖。磁盘紧张时可整删其中任一 profile 目录，下次构建/测试自动重编（debug 缓存曾积到 18 GB，2026-10-18 已清理过一次）。
 
 ## 架构（大图）
 
@@ -53,7 +60,7 @@ CI（.github/workflows/build.yml）= session-core 测试 + src-tauri 测试 + `n
 
 版本语义按 semver：feat → 次版本，fix → 修订号。全程两处需要用户确认：commit 入库前、每次 push 前。
 
-1. **质量检查**：本地 `npx tsc --noEmit && npm run build`；有 Rust 环境时两个目录各跑 `cargo test`。本机没有 Rust 时，先把 main 推上去等 build workflow 绿——**CI 绿是打 tag 的硬前置**，tag 会直接触发 Release 产物。
+1. **质量检查**：本地 `npx tsc --noEmit && npm run build`，两个目录各跑 `cargo test`（本机 Rust 已就绪，见「本地构建环境」）——**CI 绿仍是打 tag 的硬前置**，tag 会直接触发 Release 产物。
 2. **版本号四处对齐**：`package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`crates/session-core/Cargo.toml`，并同步两个 `Cargo.lock`（src-tauri 与 crates/session-core 各一个）。这是历史漂移重灾区，tag 前逐一核对。
 3. **CHANGELOG 起草 + README 与文档检查**：在 `CHANGELOG.md` 的 `Unreleased` 段写好本版要点（随发版 commit 入库）；EN/ZH 两份 README **对称**更新（功能清单、「当前状态」、安装说明、`resession.png` 是否反映当前 UI）；`docs/roadmap.md` 顶部的「当前开发版本 / 最近发布版本」行（第二个漂移重灾区）；顺手清理工作区里的临时文件（`_patch_*.py`、`app-icon copy.png` 之类），别让它们混进发版 commit。
 4. **commit + push（两步推送）**：发版 commit 入库 → push main → 等 CI 绿 → 再单独 `git push origin vX.Y.Z`。**不要 main 和 tag 一起推**：tag 先于 CI 结果会放出未经验证的 Release。

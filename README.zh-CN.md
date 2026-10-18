@@ -58,7 +58,15 @@ npm install
 npm run tauri build -- --no-bundle   # → src-tauri/target/release/resession.exe
 ```
 
-需要 Node ≥ 20、Rust（Windows 用 MSVC 工具链）和 VS Build Tools C++ 工作负载。细节见 [docs/build.md](docs/build.md)。
+前置依赖：
+
+- **Node.js ≥ 20** 与 npm——前端构建和 Tauri CLI
+- **Rust**（经 [rustup](https://rustup.rs) 安装）——Windows 用 `x86_64-pc-windows-msvc` 工具链，Apple silicon Mac 用 `aarch64-apple-darwin`
+- **Windows**：VS 2022 Build Tools 的 **C++ 工作负载**（提供 MSVC 链接器与 Windows SDK）；链接阶段若找不到 MSVC 工具，先执行 `VC\Auxiliary\Build\vcvars64.bat`
+- **macOS**：Xcode Command Line Tools
+- **运行期（Windows）**：WebView2 Runtime（Win11 自带）
+
+细节与踩坑实录见 [docs/build.md](docs/build.md)。
 
 ## 开发
 
