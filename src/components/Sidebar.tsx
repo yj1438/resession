@@ -8,6 +8,11 @@ interface Props {
   sessions: SessionMeta[];
   providerSel: Record<string, boolean>;
   onToggleProvider: (name: ProviderName) => void;
+  projectFilter: string | null;
+  projectOptions: [string, string][];
+  timeFilter: number | null;
+  onProjectFilter: (value: string | null) => void;
+  onTimeFilter: (value: number | null) => void;
   selectedId: string | null;
   activeIds: string[];
   busyIds: Set<string>;
@@ -88,6 +93,11 @@ export default function Sidebar({
   selectedId,
   providerSel,
   onToggleProvider,
+  projectFilter,
+  projectOptions,
+  timeFilter,
+  onProjectFilter,
+  onTimeFilter,
   activeIds,
   busyIds,
   hits,
@@ -168,6 +178,32 @@ export default function Sidebar({
             </button>
           );
         })}
+      </div>
+      {/* 组合筛选：项目与时间（归档维度由底部开关承担）；会话列表与搜索命中同受作用 */}
+      <div className="filter-row">
+        <select
+          className={projectFilter ? "active" : undefined}
+          value={projectFilter ?? ""}
+          title="按项目筛选"
+          onChange={(e) => onProjectFilter(e.target.value || null)}
+        >
+          <option value="">全部项目</option>
+          {projectOptions.map(([key, name]) => (
+            <option key={key} value={key}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <select
+          className={timeFilter !== null ? "active" : undefined}
+          value={timeFilter ?? ""}
+          title="按时间筛选"
+          onChange={(e) => onTimeFilter(e.target.value ? Number(e.target.value) : null)}
+        >
+          <option value="">全部时间</option>
+          <option value="7">近 7 天</option>
+          <option value="30">近 30 天</option>
+        </select>
       </div>
       {hits ? (
         <ul className="hits">

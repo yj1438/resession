@@ -1378,3 +1378,33 @@ mark {
   opacity: 0.5;
   text-decoration: line-through;
 }
+
+/* 组合筛选行：项目 / 时间下拉，风格与 provider 芯片一致 */
+.filter-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 7px;
+}
+
+.filter-row select {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: border-color 100ms ease;
+}
+
+.filter-row select.active {
+  color: var(--text);
+  border-color: var(--accent-border);
+}
+
+.filter-row select:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}

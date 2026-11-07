@@ -12,7 +12,7 @@ import { checkUpdate, type UpdateInfo } from "./update";
 import { PROVIDERS, providerLabel, ptySessionId, type ProviderName } from "./providers";
 import { ask } from "@tauri-apps/plugin-dialog";
 import ToastHost, { reportError } from "./components/Toasts";
-import { pathBaseName, pathsEqual } from "./paths";
+import { normalizePath, pathBaseName, pathsEqual } from "./paths";
 import type { AppSettings, PtyStatus, SearchHit, SessionMeta } from "./types";
 
 // 浏览器直开（npm run dev）时的占位数据；Tauri 内一律走真实扫描
@@ -88,6 +88,9 @@ export default function App() {
       return Object.values(next).some(Boolean) ? next : allOn();
     });
   };
+  // 组合筛选：项目 = normalizePath 后的稳定 key（null=全部）；时间 = 最近 N 天（null=全部）
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<number | null>(null);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -257,27 +260,57 @@ export default function App() {
     };
   }, [query]);
 
+  // 项目筛选候选：按稳定 key 去重，展示名取目录名（与侧栏分组同一套路径语义）
+  const projectOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const s of sessions) {
+      const path = s.cwd || s.projectDir;
+      const key = normalizePath(path);
+      if (!byKey.has(key)) byKey.set(key, pathBaseName(path));
+    }
+    return [...byKey.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [sessions]);
+
+  const matchesProject = useCallback(
+    (s: SessionMeta) =>
+      projectFilter === null || normalizePath(s.cwd || s.projectDir) === projectFilter,
+    [projectFilter],
+  );
+
+  const matchesTime = useCallback(
+    (s: SessionMeta) => {
+      if (timeFilter === null) return true;
+      if (!s.modifiedAt) return false;
+      return Date.now() - new Date(s.modifiedAt).getTime() <= timeFilter * 86_400_000;
+    },
+    [timeFilter],
+  );
+
   const filtered = useMemo(() => {
     const kept = showArchived
       ? sessions
       : sessions.filter((s) => !archivedIds.has(sessionKey(s)));
     const q = query.trim().toLowerCase();
-    const byProvider = kept.filter((s) => providerSel[s.provider] !== false);
+    const byProvider = kept.filter(
+      (s) => providerSel[s.provider] !== false && matchesProject(s) && matchesTime(s),
+    );
     if (!q) return byProvider;
     return byProvider.filter((s) =>
       [s.title, s.cwd, s.projectDir].some((f) => f?.toLowerCase().includes(q)),
     );
-  }, [sessions, query, archivedIds, showArchived, providerSel]);
+  }, [sessions, query, archivedIds, showArchived, providerSel, matchesProject, matchesTime]);
 
   // 搜索结果同样屏蔽已归档会话
   const visibleHits = useMemo(
     () =>
-      hits?.filter((h) =>
-        providerSel[h.session.provider] &&
-        (showArchived || !archivedIds.has(sessionKey(h.session)))
-      ) ??
-      null,
-    [hits, archivedIds, showArchived, providerSel],
+      hits?.filter(
+        (h) =>
+          providerSel[h.session.provider] &&
+          matchesProject(h.session) &&
+          matchesTime(h.session) &&
+          (showArchived || !archivedIds.has(sessionKey(h.session))),
+      ) ?? null,
+    [hits, archivedIds, showArchived, providerSel, matchesProject, matchesTime],
   );
 
   // 侧栏底部“已归档”开关的计数（按全量会话，不随搜索过滤）
@@ -542,6 +575,11 @@ export default function App() {
           sessions={filtered}
           providerSel={providerSel}
           onToggleProvider={toggleProvider}
+          projectFilter={projectFilter}
+          projectOptions={projectOptions}
+          timeFilter={timeFilter}
+          onProjectFilter={setProjectFilter}
+          onTimeFilter={setTimeFilter}
           selectedId={selectedId}
           activeIds={activeIds}
           busyIds={busyIds}
