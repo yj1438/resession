@@ -51,7 +51,7 @@ export default function NewSessionPanel({
           {PROVIDERS.map((item) => (
             <button
               key={item.value}
-              className={provider === item.value ? "provider-choice-btn selected" : "provider-choice-btn"}
+              className={provider === item.value ? `provider-choice-btn selected ${item.value}` : "provider-choice-btn"}
               aria-pressed={provider === item.value}
               onClick={() => setProvider(item.value)}
             >

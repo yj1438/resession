@@ -13,6 +13,13 @@
   --accent-soft: rgba(88, 166, 255, 0.14);
   --accent-border: rgba(88, 166, 255, 0.5);
   --green: #23d18b;
+  /* Provider 代表色：Claude 陶土金（源自其图标）、Codex 银白；整体淡化以融入深色底 */
+  --pv-claude: #d99a7a;
+  --pv-claude-border: rgba(217, 119, 87, 0.45);
+  --pv-claude-soft: rgba(217, 119, 87, 0.1);
+  --pv-codex: #b9c4cd;
+  --pv-codex-border: rgba(185, 196, 205, 0.38);
+  --pv-codex-soft: rgba(185, 196, 205, 0.07);
 }
 
 * {
@@ -110,6 +117,18 @@ body {
   font-size: 10px;
   line-height: 1.2;
   vertical-align: middle;
+}
+
+.provider-badge.claude {
+  color: var(--pv-claude);
+  border-color: var(--pv-claude-border);
+  background: var(--pv-claude-soft);
+}
+
+.provider-badge.codex {
+  color: var(--pv-codex);
+  border-color: var(--pv-codex-border);
+  background: var(--pv-codex-soft);
 }
 
 .main {
@@ -943,6 +962,18 @@ body.resizing-sidebar {
   color: var(--accent);
 }
 
+.provider-choice-btn.selected.claude {
+  border-color: var(--pv-claude-border);
+  background: var(--pv-claude-soft);
+  color: var(--pv-claude);
+}
+
+.provider-choice-btn.selected.codex {
+  border-color: var(--pv-codex-border);
+  background: var(--pv-codex-soft);
+  color: var(--pv-codex);
+}
+
 .np-list li {
   display: flex;
   justify-content: space-between;
@@ -1329,6 +1360,18 @@ mark {
   border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.provider-chip.on.claude {
+  border-color: var(--pv-claude-border);
+  background: var(--pv-claude-soft);
+  color: var(--pv-claude);
+}
+
+.provider-chip.on.codex {
+  border-color: var(--pv-codex-border);
+  background: var(--pv-codex-soft);
+  color: var(--pv-codex);
 }
 
 .provider-chip.off {

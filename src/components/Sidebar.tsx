@@ -159,7 +159,7 @@ export default function Sidebar({
           return (
             <button
               key={p.value}
-              className={on ? "provider-chip on" : "provider-chip off"}
+              className={on ? `provider-chip on ${p.value}` : "provider-chip off"}
               aria-pressed={on}
               title={on ? `点击隐藏 ${p.label} 会话` : "点击显示"}
               onClick={() => onToggleProvider(p.value)}
@@ -183,7 +183,7 @@ export default function Sidebar({
                 <span className={`hit-role role-${hit.role}`}>
                   {hit.role === "user" ? "你" : hit.role === "assistant" ? providerLabel(hit.session.provider) : "系统"}
                 </span>
-                <span className="provider-badge">{providerLabel(hit.session.provider)}</span>
+                <span className={`provider-badge ${hit.session.provider}`}>{providerLabel(hit.session.provider)}</span>
                 <span className="project">{hit.session.title ?? "(无标题)"}</span>
                 {hit.sidechain && <span title="子 agent 消息">🤖</span>}
               </div>
@@ -318,7 +318,6 @@ export default function Sidebar({
                                 >
                                   {session.title ?? "(无标题)"}
                                 </span>
-                                <span className="provider-badge">{providerLabel(session.provider)}</span>
                                 <span className="row-actions">
                                   {isArchived ? (
                                     <button
@@ -366,6 +365,8 @@ export default function Sidebar({
                                     ✎
                                   </button>
                                 </span>
+                                {/* 徽标置于行尾（悬停按钮之后）：右缘成一条整齐的Provider色列 */}
+                                <span className={`provider-badge ${session.provider}`}>{providerLabel(session.provider)}</span>
                               </>
                             )}
                           </div>
