@@ -28,13 +28,13 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 - **Parallel** — PTYs live in the backend keyed by session; switch away and back without killing anything; busy/idle dots show what's working
 - **Start** — choose Claude or Codex and start a session in any directory
 - **Organize** — sessions grouped by project in a collapsible tree; archive noisy sessions to hide them, or trash finished Claude sessions (system trash, recoverable)
-- **Filter by agent** — multi-select toggle chips at the top of the list (show/hide Claude and Codex independently), with provider badges on session rows, running chips and search hits
+- **Filter by agent and scope** — multi-select toggle chips at the top of the list (show/hide Claude and Codex independently), plus project and time-range dropdowns that compose freely; provider badges on session rows, running chips and search hits
 - **Rename** — non-destructive aliases stored in ReSession's own config; native `/rename` titles are recognized too
 - **Portable** — single ~10 MB exe, statically linked CRT; only runtime dependencies are OS-shipped (WebView2, system UCRT)
 
 ## Status
 
-Claude and Codex are both shipped and used daily on Windows and macOS. The latest release is v0.8.1: it fixes duplicate version prefixes and adds native macOS clipboard writes. Cross-agent task delivery previously shipped as the local Agent Bridge has been removed — for agent-to-agent collaboration use the [tmux-agent](plugins/tmux-agent/) plugin instead; ReSession focuses on session search, replay and native resume. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
+Claude and Codex are both shipped and used daily on Windows and macOS. The latest release is v0.9.0: it removes the local Agent Bridge (agent-to-agent collaboration now lives in the [tmux-agent](plugins/tmux-agent/) plugin), adds combined project/time filtering and per-provider accent colors, and ships a new app icon. ReSession focuses on session search, replay and native resume. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 

@@ -5,7 +5,13 @@
 
 ## Unreleased
 
+## v0.9.0 — 2026-11-07
+
 - **移除**：Agent Bridge 本地桥与 resession-bridge 技能——实测体验不如 tmux-agent，跨 Agent 协作统一由 [tmux-agent](plugins/tmux-agent/) 插件承担，ReSession 回归会话搜索、回放与原生恢复的本职
+- **新增**：会话列表组合筛选——「全部项目 / 近 7 天 / 近 30 天」下拉与 Provider 芯片、归档开关任意叠加，搜索命中同步受筛选作用
+- **变更**：Claude / Codex 定代表色（陶土金 / 银白），会话行徽标、筛选芯片、新会话按钮按 Provider 着色；徽标右对齐成列，不随标题长短浮动
+- **变更**：应用图标换新——R + 会话气泡设计，新图标已随构建嵌入各平台产物（历代源图归档于 `docs/assets/`）
+- **文档**：README 补全源码构建前置依赖，AGENTS.md 记录本地 rustup 构建环境
 
 ## v0.8.1 — 2026-10-14
 

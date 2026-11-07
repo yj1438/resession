@@ -28,13 +28,13 @@ ReSession 统一浏览、搜索和回放本地 Claude Code 与 Codex 会话；�
 - **并行**——PTY 常驻后端（以会话 id 为键），切走切回不丢；忙/闲圆点实时显示哪个在干活
 - **开新的**——选择 Claude 或 Codex，在任意目录启动全新会话（已知项目 / 文件夹选择器 / 手动路径）
 - **整理**——会话按项目分组收进可折叠的项目树；吵闹的会话可归档隐藏，完成的 Claude 会话可删除（移入系统废纸篓，可恢复）
-- **按 Agent 筛选**——列表顶部的多选芯片，独立显隐 Claude / Codex；会话行、运行中条和搜索结果都带 Provider 徽标
+- **按 Agent 和范围筛选**——列表顶部的多选芯片独立显隐 Claude / Codex，另配项目与时间下拉自由叠加；会话行、运行中条和搜索结果都带 Provider 徽标
 - **改名**——非破坏性别名存在 ReSession 自己的配置里；原生 `/rename` 标题也能识别
 - **绿色单文件**——约 10MB exe，CRT 静态链接；运行期只依赖系统自带组件（WebView2、系统 UCRT）
 
 ## 当前状态
 
-Claude 与 Codex 均已发布并在 Windows/macOS 日常使用。最近发布的 v0.8.1 修复重复版本号前缀，并增加 macOS 原生剪贴板写入。此前的跨 Agent 投递功能（本地 Agent Bridge）已移除——Agent 间协作请改用 [tmux-agent](plugins/tmux-agent/) 插件，ReSession 专注会话搜索、回放与原生恢复。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
+Claude 与 Codex 均已发布并在 Windows/macOS 日常使用。最近发布的 v0.9.0 移除了本地 Agent Bridge（Agent 间协作改由 [tmux-agent](plugins/tmux-agent/) 插件承担），新增项目/时间组合筛选与 Provider 代表色，并启用新应用图标。ReSession 专注会话搜索、回放与原生恢复。删除 Claude 会话会将其 JSONL 移入系统废纸篓；Codex 的原生会话文件暂时不受 ReSession 删除操作影响。
 
 ## 安装
 
