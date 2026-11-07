@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- **移除**：Agent Bridge 本地桥与 resession-bridge 技能——实测体验不如 tmux-agent，跨 Agent 协作统一由 [tmux-agent](plugins/tmux-agent/) 插件承担，ReSession 回归会话搜索、回放与原生恢复的本职
+
 ## v0.8.1 — 2026-10-14
 
 - **修复**：统一更新检查返回的版本号格式，避免状态栏、下载提示与设置页出现重复的 `vv` 前缀。

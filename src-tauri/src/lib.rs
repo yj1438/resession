@@ -1,4 +1,3 @@
-mod bridge;
 mod clipboard;
 mod pty;
 mod settings;
@@ -24,7 +23,7 @@ fn scan_sessions(settings: State<SettingsState>) -> Result<Vec<SessionMeta>, Str
     scan_all_sessions(&settings)
 }
 
-/// 扫描聚合（命令与 bridge 共用）：别名覆盖、孤儿清洗、时间倒序
+/// 扫描聚合：别名覆盖、孤儿清洗、时间倒序
 pub(crate) fn scan_all_sessions(settings: &SettingsState) -> Result<Vec<SessionMeta>, String> {
     let aliases = settings.0.lock().unwrap().aliases.clone();
     let mut all = Vec::new();
@@ -615,16 +614,9 @@ pub fn run() {
         ])
         .setup(|app| {
             log::info!("ReSession v{} started", app.package_info().version);
-            bridge::start(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            // 退出时清掉桥的服务发现文件：留着就是指向死端口的陈旧配置，
-            // skill 会拿到"文件在但连不上"的困惑状态（而非干净的"未运行"）
-            if let tauri::RunEvent::Exit = event {
-                bridge::remove_discovery_file();
-            }
-        });
+        .run(|_app, _event| {});
 }
