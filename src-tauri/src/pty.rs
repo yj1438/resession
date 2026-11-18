@@ -149,12 +149,27 @@ fn build_command(spec: &ResumeSpec) -> CommandBuilder {
         };
         cmd.env("PATH", merged);
     }
+    #[cfg(target_os = "macos")]
+    apply_macos_locale_fallback(&mut cmd);
+
     // 颜色三件套：TERM/COLORTERM 是常规声明；FORCE_COLOR=3 强制 Node/chalk
     // 走真彩，绕过其在 ConPTY 下不可靠的终端能力自动探测
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     cmd.env("FORCE_COLOR", "3");
     cmd
+}
+
+/// Finder/Dock 启动时可能没有 locale。Claude 普通拖选时自行调用 pbcopy，
+/// 不经过 App 的复制命令；C 编码下中文可能被写成空文本。
+#[cfg(any(target_os = "macos", test))]
+fn apply_macos_locale_fallback(cmd: &mut CommandBuilder) {
+    if ["LANG", "LC_CTYPE", "LC_ALL"]
+        .iter()
+        .all(|key| cmd.get_env(*key).is_none_or(|value| value.is_empty()))
+    {
+        cmd.env("LANG", "en_US.UTF-8");
+    }
 }
 
 /// 幂等 spawn：该会话已有 PTY 时直接返回（调用方负责先行检查，这里兜底）。
@@ -424,6 +439,39 @@ pub fn close(map: &PtyMap, id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn macos_locale_fallback_sets_child_lang_when_locale_is_missing_or_empty() {
+        let mut cmd = CommandBuilder::new("test-agent");
+        cmd.env_clear();
+        cmd.env("PATH", "test-path");
+        apply_macos_locale_fallback(&mut cmd);
+        assert_eq!(cmd.get_env("LANG"), Some(OsStr::new("en_US.UTF-8")));
+        assert_eq!(cmd.get_env("PATH"), Some(OsStr::new("test-path")));
+        assert_eq!(cmd.get_env("LC_ALL"), None);
+        assert_eq!(cmd.get_env("LC_CTYPE"), None);
+
+        for key in ["LANG", "LC_CTYPE", "LC_ALL"] {
+            cmd.env(key, "");
+        }
+        apply_macos_locale_fallback(&mut cmd);
+        assert_eq!(cmd.get_env("LANG"), Some(OsStr::new("en_US.UTF-8")));
+    }
+
+    #[test]
+    fn macos_locale_fallback_preserves_explicit_locale() {
+        for (key, value) in [("LANG", "zh_CN.UTF-8"), ("LC_CTYPE", "UTF-8"), ("LC_ALL", "C")] {
+            let mut cmd = CommandBuilder::new("test-agent");
+            cmd.env_clear();
+            cmd.env(key, value);
+            apply_macos_locale_fallback(&mut cmd);
+            for locale_key in ["LANG", "LC_CTYPE", "LC_ALL"] {
+                let expected = (locale_key == key).then_some(OsStr::new(value));
+                assert_eq!(cmd.get_env(locale_key), expected);
+            }
+        }
+    }
 
     #[test]
     fn output_buffer_offsets_survive_truncation() {

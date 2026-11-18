@@ -5,6 +5,7 @@
 > 2026-09-26 的独立空目录冒烟测试曾遇到新会话终端空白。首帧修复须在下一份 App 中重新验证。
 > 2026-10-08：系统 pbcopy 写入、NSPasteboard 与 pbpaste 读取的中文/多行往返验证通过；
 > 已恢复原剪贴板。App 内 Cmd+C/复制按钮仍需在包含原生通道的新包中验收。
+> 2026-11-18：确认 v0.9.0 未包含此前测试包 `6d220cb` 的 PTY UTF-8 缺省修复。见第 4 节。
 
 ## 0. Codex App 内置 CLI 路径
 
@@ -56,3 +57,15 @@ done
 记录 App 版本与 build 时间、启动方式（Dock/Finder/终端）、Agent 类型、是否独立安装
 CLI、界面截图，以及设置页日志目录中 `resession.log` 的相关行。日志或截图可能含有本机
 路径、会话内容和凭据；对外提交前先检查并脱敏。
+
+## 4. Claude 全屏模式普通拖选中文为空
+
+- 历史排查：此前在旧 App 的 Claude 子进程中，三个 locale 字段均未设置。`pbcopy` 对照实验中 ASCII 正常，中文/Emoji 写入 0 字节但仍退出成功；仅补 `LANG=en_US.UTF-8` 后固定样本均能原样读回。[测试构建 #67](https://github.com/yj1438/resession/actions/runs/38582169639) 双平台通过，用户用 Mac 测试包成功贴出中文、多行及 Emoji，但未记录具体复制入口。
+- [Claude 全屏模式文档](https://code.claude.com/docs/en/fullscreen#keep-native-text-selection) 区分了 CLI 普通拖选自动复制和终端本地选区。v0.9.0 只给 App 自己调用的 `pbcopy` 指定 UTF-8；CLI 自己启动的 `pbcopy` 不会继承这项设置。
+- 本次只补回 PTY 缺省环境；不改 App 自己的复制入口，不覆盖用户显式设置的 locale。
+
+新包验收：
+
+- [ ] 从 Finder/Dock 启动新包，在空闲时关闭旧 PTY 并恢复会话；仅切换标签不会重建 PTY。
+- [ ] Claude 全屏模式普通拖选中文、英文和 Emoji，松开鼠标后直接粘贴到外部编辑器，确认内容完整。
+- [ ] 分开验证 Option 拖选后 Cmd+C、复制按钮，以及外部文字粘贴回终端，确认原有行为未回归。

@@ -95,6 +95,9 @@ pub struct ResumeSpec {
   断开观看，切回时经 `pty_snapshot` 回放缓冲（512KB 滚动）重新附着，
   天然支持并行多会话。UI 上以侧栏绿点 + 状态栏计数标识，页头按钮手动关闭
 - **不解析、不记录、不干预 PTY 内容**——这就是"原生"的含义
+- **Mac PTY 的 UTF-8 缺省环境**：仅当 `LANG`、`LC_CTYPE`、`LC_ALL` 全部缺失或为空，才向新的
+  PTY 子进程补 `LANG=en_US.UTF-8`。Claude 全屏模式的普通拖选由 CLI 自己调用 `pbcopy`，
+  不走 App 的复制命令。保留显式 locale，不修改全局设置；已经运行的 PTY 需重新恢复。
 - **终端复制**：TUI 开启鼠标上报时，macOS 开启 xterm 的
   `macOptionClickForcesSelection`，用 Option（⌥）拖选；Windows/Linux 用 Shift
   拖选。选区可通过 Mac 的 Cmd+C、其他平台的 Ctrl+Shift+C 或“复制选中内容”

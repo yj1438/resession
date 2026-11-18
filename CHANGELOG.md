@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- **修复**：macOS 从 Finder/Dock 启动且缺少字符编码环境时，为新建或恢复的终端子进程补默认 UTF-8，避免 Claude 全屏模式普通拖选中文时自动复制为空。保留显式 locale；运行中的终端需重新恢复才生效。
+
 ## v0.9.0 — 2026-11-07
 
 - **移除**：Agent Bridge 本地桥与 resession-bridge 技能——实测体验不如 tmux-agent，跨 Agent 协作统一由 [tmux-agent](plugins/tmux-agent/) 插件承担，ReSession 回归会话搜索、回放与原生恢复的本职
