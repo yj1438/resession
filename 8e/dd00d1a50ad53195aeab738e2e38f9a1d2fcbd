@@ -1,0 +1,29 @@
+src-tauri/src/pty.rs
+  s_d0e09f54bb4fd5::t_b4ab13c82141c5 152-154,163-174,442-468,473-474
+  s_d0e09f54bb4fd5::t_c9b8991b1c4647 469-472
+CHANGELOG.md
+  s_d0e09f54bb4fd5::t_b4ab13c82141c5 8-9
+docs/mac-verification.md
+  s_d0e09f54bb4fd5::t_c9b8991b1c4647 63
+  s_d0e09f54bb4fd5::t_b4ab13c82141c5 8,60-62,64-71
+docs/architecture.md
+  s_d0e09f54bb4fd5::t_b4ab13c82141c5 98-100
+docs/roadmap.md
+  s_d0e09f54bb4fd5::t_b4ab13c82141c5 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8edd00d1a50ad53195aeab738e2e38f9a1d2fcbd",
+  "prompts": {},
+  "sessions": {
+    "s_d0e09f54bb4fd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bcd7-59ee-7352-a12f-e28a8a4315bd",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "沐瑜 <yj138290@antfin.com>"
+    }
+  }
+}
