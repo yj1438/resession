@@ -1,0 +1,41 @@
+README.zh-CN.md
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 37
+package.json
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 4
+src-tauri/Cargo.toml
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 3
+src-tauri/tauri.conf.json
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 4
+CHANGELOG.md
+  s_d0e09f54bb4fd5::t_1bc62ae98edcc8 8
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 9
+docs/roadmap.md
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 4-5
+  s_d0e09f54bb4fd5::t_1bc62ae98edcc8 3
+README.md
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 37
+crates/session-core/Cargo.toml
+  s_d0e09f54bb4fd5::t_e4280095fd59ce 3
+crates/session-core/Cargo.lock
+  s_d0e09f54bb4fd5::t_4ca38ea15b4544 80
+package-lock.json
+  s_d0e09f54bb4fd5::t_e8596637b3a6c2 3,9
+src-tauri/Cargo.lock
+  s_d0e09f54bb4fd5::t_a1a094477b9d9f 2633,2961
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "265880282899dcb431c096d490e41796d0d49551",
+  "prompts": {},
+  "sessions": {
+    "s_d0e09f54bb4fd5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bcd7-59ee-7352-a12f-e28a8a4315bd",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "沐瑜 <yj138290@antfin.com>"
+    }
+  }
+}
