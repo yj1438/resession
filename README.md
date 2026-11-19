@@ -34,7 +34,7 @@ ReSession brings local Claude Code and Codex sessions into one browser and searc
 
 ## Status
 
-Claude and Codex are both shipped and used daily on Windows and macOS. The latest release is v0.9.0: it removes the local Agent Bridge (agent-to-agent collaboration now lives in the [tmux-agent](plugins/tmux-agent/) plugin), adds combined project/time filtering and per-provider accent colors, and ships a new app icon. ReSession focuses on session search, replay and native resume. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
+Claude and Codex are both shipped and used daily on Windows and macOS. v0.9.1 restores the UTF-8 locale fallback for new macOS terminal processes, fixing empty clipboard contents when ordinary dragging selects Chinese text in Claude's fullscreen mode. Close the old terminal and resume the session if it was already running. v0.9.0 added combined project/time filtering, per-provider accent colors and a new app icon, and moved agent-to-agent collaboration to the [tmux-agent](plugins/tmux-agent/) plugin. ReSession focuses on session search, replay and native resume. Deleting a Claude session moves its JSONL to the system trash; Codex's native session files are not touched by ReSession's delete for now.
 
 ## Install
 

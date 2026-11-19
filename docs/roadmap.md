@@ -1,8 +1,8 @@
 # ReSession Roadmap
 
-> 更新日期：2026-11-07
-> 当前开发版本：v0.9.0 之后的主干
-> 最近发布版本：`v0.9.0`（2026-11-07，移除 Agent Bridge、组合筛选、Provider 代表色与新图标）
+> 更新日期：2026-11-19
+> 当前开发版本：`v0.9.1`（macOS 终端 UTF-8 缺省修复）
+> 最近发布版本：见 [GitHub Releases](https://github.com/yj1438/resession/releases/latest)
 
 ## 产品定位
 
